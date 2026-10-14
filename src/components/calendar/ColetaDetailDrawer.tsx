@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { X, Clock, Users, Target, Plus, Trash2 } from 'lucide-react';
+import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check } from 'lucide-react';
 import type { Coleta, Condutor, Agendamento, StatusAgendamento } from '@/types';
-import { calcColetaStats, dbAgendamentos, dbCondutores } from '@/lib/db';
+import { calcColetaStats, dbAgendamentos, dbCondutores, dbColetas } from '@/lib/db';
 import { formatDateBR, formatTime, getOccupancyColor, colorClasses } from '@/utils';
 import { STATUS_AGENDAMENTO_LABELS, STATUS_COLETA_LABELS } from '@/types';
 import { Badge } from '@/components/ui/Badge';
@@ -32,10 +32,13 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   const [selectedCondutor, setSelectedCondutor] = useState('');
   const [cancelTarget, setCancelTarget] = useState<Agendamento | null>(null);
   const [loading, setLoading] = useState(false);
+  const [editingMeta, setEditingMeta] = useState(false);
+  const [novaMeta, setNovaMeta] = useState(0);
 
   useEffect(() => {
     if (coleta) {
       dbCondutores.listAtivos().then(({ data }) => setCondutores((data as Condutor[]) || []));
+      setEditingMeta(false);
     }
   }, [coleta]);
 
@@ -75,6 +78,18 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     onUpdated();
   };
 
+  const salvarMeta = async () => {
+    if (!coleta) return;
+    await dbColetas.update(coleta.id, { meta: novaMeta });
+    setEditingMeta(false);
+    onUpdated();
+  };
+
+  const iniciarEdicaoMeta = () => {
+    setNovaMeta(coleta.meta);
+    setEditingMeta(true);
+  };
+
   const agendamentosAtivos = (coleta.agendamentos || []).filter((a) => a.status !== 'cancelado');
   const agendamentosCancelados = (coleta.agendamentos || []).filter((a) => a.status === 'cancelado');
 
@@ -108,9 +123,33 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         <div className="grid grid-cols-3 gap-3 px-5 py-4 border-b border-slate-200">
           <div className="text-center">
             <div className="text-xs text-slate-500">Meta</div>
-            <div className="text-lg font-bold text-slate-800 flex items-center justify-center gap-1">
-              <Target size={14} className="text-brand-500" /> {coleta.meta}
-            </div>
+            {editingMeta ? (
+              <div className="flex items-center justify-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  className="w-16 text-center text-lg font-bold text-slate-800 border border-slate-300 rounded px-1 py-0.5"
+                  value={novaMeta}
+                  onChange={(e) => setNovaMeta(Number(e.target.value))}
+                  autoFocus
+                />
+                <button className="p-1 text-green-600 hover:bg-green-50 rounded" onClick={salvarMeta} title="Salvar">
+                  <Check size={16} />
+                </button>
+                <button className="p-1 text-slate-400 hover:bg-slate-100 rounded" onClick={() => setEditingMeta(false)} title="Cancelar">
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="text-lg font-bold text-slate-800 flex items-center justify-center gap-1">
+                <Target size={14} className="text-brand-500" /> {coleta.meta}
+                {canEdit && (
+                  <button className="p-0.5 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded" onClick={iniciarEdicaoMeta} title="Editar meta">
+                    <Pencil size={12} />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div className="text-center">
             <div className="text-xs text-slate-500">Agendados</div>

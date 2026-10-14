@@ -75,6 +75,8 @@ export const dbCondutores = {
   update: (id: string, data: Partial<Condutor>) =>
     supabase.from('condutores').update(data).eq('id', id).select().single(),
   remove: (id: string) => supabase.from('condutores').delete().eq('id', id),
+  bulkCreate: (data: Partial<Condutor>[]) =>
+    supabase.from('condutores').insert(data).select(),
 };
 
 // ============================================================
@@ -123,6 +125,29 @@ export const dbColetas = {
     supabase.from('coletas').update(data).eq('id', id).select().single(),
 
   remove: (id: string) => supabase.from('coletas').delete().eq('id', id),
+
+  // Remove coletas que correspondem a uma meta (mesmo hub, dia da semana e horário)
+  removeByMetaCriteria: async (hubId: string, diaSemana: number, horario: string) => {
+    // Busca as coletas do hub e horário que caem no dia da semana especificado
+    const { data: coletas } = await supabase
+      .from('coletas')
+      .select('id, data_coleta')
+      .eq('hub_id', hubId)
+      .eq('horario', horario);
+
+    if (!coletas || coletas.length === 0) return { error: null };
+
+    const idsParaRemover = coletas
+      .filter((c) => {
+        const dow = new Date(c.data_coleta).getDay();
+        return dow === diaSemana;
+      })
+      .map((c) => c.id);
+
+    if (idsParaRemover.length === 0) return { error: null };
+
+    return supabase.from('coletas').delete().in('id', idsParaRemover);
+  },
 };
 
 // ============================================================

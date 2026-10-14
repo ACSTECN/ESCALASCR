@@ -5,7 +5,7 @@ import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
-import { dbMetas, dbHubs, dbCidades, dbHistorico } from '@/lib/db';
+import { dbMetas, dbHubs, dbCidades, dbHistorico, dbColetas } from '@/lib/db';
 import type { MetaColeta, Hub, Cidade, HistoricoAlteracao } from '@/types';
 import { DIAS_SEMANA } from '@/types';
 import { formatTime } from '@/utils';
@@ -96,6 +96,8 @@ export function MetasPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
+    // Remove também as coletas geradas a partir desta meta
+    await dbColetas.removeByMetaCriteria(deleteTarget.hub_id, deleteTarget.dia_semana, deleteTarget.horario);
     await dbMetas.remove(deleteTarget.id);
     setDeleting(false);
     setDeleteTarget(null);
@@ -371,8 +373,8 @@ export function MetasPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Excluir meta"
-        message={`Deseja excluir a meta ${deleteTarget?.hub?.sigla} - ${DIAS_SEMANA[deleteTarget?.dia_semana || 0]}?`}
-        confirmLabel="Excluir"
+        message={`Deseja excluir a meta ${deleteTarget?.hub?.sigla} - ${DIAS_SEMANA[deleteTarget?.dia_semana || 0]} às ${deleteTarget ? formatTime(deleteTarget.horario) : ''}? Todas as coletas geradas a partir desta meta também serão removidas.`}
+        confirmLabel="Excluir tudo"
         loading={deleting}
       />
     </div>

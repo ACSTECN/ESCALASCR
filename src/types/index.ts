@@ -37,6 +37,7 @@ export interface Hub {
 export interface Condutor {
   id: string;
   nome_completo: string;
+  cpf: string | null;
   telefone: string | null;
   cidade_id: string | null;
   hub_id: string | null;
