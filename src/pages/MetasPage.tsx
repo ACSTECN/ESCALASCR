@@ -78,6 +78,8 @@ export function MetasPage() {
     } else {
       await dbMetas.create(form);
     }
+    // Gera coletas automaticamente para a semana atual + próximas
+    await dbMetas.gerarRecorrentes(form.hub_id);
     setModalOpen(false);
     loadData();
   };
@@ -103,6 +105,8 @@ export function MetasPage() {
         ativo: true,
       });
     }
+    // Gera coletas automaticamente após replicar
+    await dbMetas.gerarRecorrentes(replicarMeta.hub_id);
     setReplicarMeta(null);
     setReplicarDias([]);
     loadData();
@@ -110,7 +114,7 @@ export function MetasPage() {
 
   const gerarColetas = async () => {
     await dbMetas.gerarRecorrentes(undefined, undefined, undefined);
-    alert('Coletas geradas a partir das metas recorrentes para os próximos 14 dias.');
+    alert('Coletas geradas/atualizadas para os próximos 30 dias.');
   };
 
   const verHistorico = async (meta: MetaColeta) => {

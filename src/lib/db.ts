@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { startOfWeek, addDays, formatISO } from 'date-fns';
 import type {
   Cidade,
   Hub,
@@ -141,12 +142,15 @@ export const dbMetas = {
   update: (id: string, data: Partial<MetaColeta>) =>
     supabase.from('metas_coletas').update(data).eq('id', id).select().single(),
   remove: (id: string) => supabase.from('metas_coletas').delete().eq('id', id),
-  gerarRecorrentes: (hubId?: string, startDate?: string, endDate?: string) =>
-    supabase.rpc('gerar_coletas_recorrentes', {
+  gerarRecorrentes: (hubId?: string, startDate?: string, endDate?: string) => {
+    const inicio = startDate || formatISO(startOfWeek(new Date(), { weekStartsOn: 1 }), { representation: 'date' });
+    const fim = endDate || formatISO(addDays(new Date(), 30), { representation: 'date' });
+    return supabase.rpc('gerar_coletas_recorrentes', {
       p_hub_id: hubId || null,
-      p_data_inicio: startDate || null,
-      p_data_fim: endDate || null,
-    }),
+      p_data_inicio: inicio,
+      p_data_fim: fim,
+    });
+  },
 };
 
 // ============================================================
