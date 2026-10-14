@@ -260,8 +260,8 @@ begin
       -- 0=domingo, 1=segunda ... 6=sábado (PostgreSQL: 0=domingo)
       v_dia_semana := extract(dow from v_data)::integer;
       if v_dia_semana = v_meta.dia_semana then
-        insert into public.coletas (hub_id, data_coleta, horario, meta, is_demo)
-        values (v_meta.hub_id, v_data, v_meta.horario, v_meta.meta, v_meta.is_demo)
+        insert into public.coletas (hub_id, data_coleta, horario, meta)
+        values (v_meta.hub_id, v_data, v_meta.horario, v_meta.meta)
         on conflict do nothing;
         v_count := v_count + 1;
       end if;
