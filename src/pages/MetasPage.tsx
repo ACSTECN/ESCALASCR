@@ -30,11 +30,11 @@ export function MetasPage() {
   const [editing, setEditing] = useState<MetaColeta | null>(null);
   const [form, setForm] = useState({
     hub_id: '',
-    dia_semana: 1,
     horario: '14:00',
     meta: 20,
     ativo: true,
   });
+  const [diasSelecionados, setDiasSelecionados] = useState<number[]>([1]);
 
   // Replicar
   const [replicarMeta, setReplicarMeta] = useState<MetaColeta | null>(null);
@@ -63,20 +63,29 @@ export function MetasPage() {
 
   const openModal = (meta?: MetaColeta) => {
     setEditing(meta || null);
-    setForm(
-      meta
-        ? { hub_id: meta.hub_id, dia_semana: meta.dia_semana, horario: meta.horario, meta: meta.meta, ativo: meta.ativo }
-        : { hub_id: hubs[0]?.id || '', dia_semana: 1, horario: '14:00', meta: 20, ativo: true }
-    );
+    if (meta) {
+      setForm({ hub_id: meta.hub_id, horario: meta.horario, meta: meta.meta, ativo: meta.ativo });
+      setDiasSelecionados([meta.dia_semana]);
+    } else {
+      setForm({ hub_id: hubs[0]?.id || '', horario: '14:00', meta: 20, ativo: true });
+      setDiasSelecionados([1]);
+    }
     setModalOpen(true);
   };
 
   const save = async () => {
     if (!form.hub_id) return;
     if (editing) {
-      await dbMetas.update(editing.id, form);
+      await dbMetas.update(editing.id, { ...form, dia_semana: diasSelecionados[0] });
     } else {
-      await dbMetas.create(form);
+      if (diasSelecionados.length === 0) {
+        alert('Selecione pelo menos um dia da semana.');
+        return;
+      }
+      // Cria uma meta para cada dia selecionado
+      for (const dia of diasSelecionados) {
+        await dbMetas.create({ ...form, dia_semana: dia });
+      }
     }
     // Gera coletas automaticamente para a semana atual + próximas
     await dbMetas.gerarRecorrentes(form.hub_id);
@@ -237,20 +246,50 @@ export function MetasPage() {
       {/* Modal Nova/Editar Meta */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar Meta' : 'Nova Meta'}>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">HUB</label>
-              <select className="input" value={form.hub_id} onChange={(e) => setForm({ ...form, hub_id: e.target.value })}>
-                <option value="">Selecione...</option>
-                {hubs.map((h) => <option key={h.id} value={h.id}>{h.sigla} — {h.nome}</option>)}
-              </select>
+          <div>
+            <label className="label">HUB</label>
+            <select className="input" value={form.hub_id} onChange={(e) => setForm({ ...form, hub_id: e.target.value })}>
+              <option value="">Selecione...</option>
+              {hubs.map((h) => <option key={h.id} value={h.id}>{h.sigla} — {h.nome}</option>)}
+            </select>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="label mb-0">Dias da semana</label>
+              {!editing && (
+                <button
+                  type="button"
+                  className="text-xs text-blue-600 hover:underline"
+                  onClick={() => setDiasSelecionados(diasSelecionados.length === 7 ? [] : [0,1,2,3,4,5,6])}
+                >
+                  {diasSelecionados.length === 7 ? 'Desmarcar todos' : 'Selecionar todos'}
+                </button>
+              )}
             </div>
-            <div>
-              <label className="label">Dia da semana</label>
-              <select className="input" value={form.dia_semana} onChange={(e) => setForm({ ...form, dia_semana: Number(e.target.value) })}>
-                {DIAS_SEMANA.map((d, i) => <option key={i} value={i}>{d}</option>)}
-              </select>
+            <div className="grid grid-cols-2 gap-2">
+              {DIAS_SEMANA.map((d, i) => (
+                <label key={i} className={`flex items-center gap-2 p-2 border rounded-lg cursor-pointer transition ${
+                  diasSelecionados.includes(i) ? 'bg-blue-50 border-blue-300' : 'hover:bg-slate-50'
+                } ${editing && i !== diasSelecionados[0] ? 'opacity-50' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={diasSelecionados.includes(i)}
+                    onChange={(e) => {
+                      if (editing) {
+                        // Na edição, só permite um dia
+                        setDiasSelecionados([i]);
+                      } else {
+                        setDiasSelecionados(e.target.checked ? [...diasSelecionados, i] : diasSelecionados.filter((x) => x !== i));
+                      }
+                    }}
+                  />
+                  <span className="text-sm text-slate-700">{d}</span>
+                </label>
+              ))}
             </div>
+            {!editing && (
+              <p className="text-xs text-slate-500 mt-1">Será criada uma meta para cada dia selecionado, com o mesmo horário e meta.</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
