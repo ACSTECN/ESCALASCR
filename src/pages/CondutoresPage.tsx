@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Search, Phone, Upload, FileText, CheckSquare, Square, X } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
@@ -18,6 +18,9 @@ export function CondutoresPage() {
   const [cidades, setCidades] = useState<Cidade[]>([]);
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [search, setSearch] = useState('');
+  const [filtroCidade, setFiltroCidade] = useState('');
+  const [filtroHub, setFiltroHub] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState('');
   const [loading, setLoading] = useState(true);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -64,6 +67,17 @@ export function CondutoresPage() {
   useEffect(() => {
     loadData();
   }, [search]);
+
+  const hubsFiltro = filtroCidade ? hubs.filter((h) => h.cidade_id === filtroCidade) : hubs;
+
+  const condutoresFiltrados = useMemo(() => {
+    return condutores.filter((c) => {
+      if (filtroCidade && c.cidade_id !== filtroCidade) return false;
+      if (filtroHub && c.hub_id !== filtroHub) return false;
+      if (filtroStatus && c.status !== filtroStatus) return false;
+      return true;
+    });
+  }, [condutores, filtroCidade, filtroHub, filtroStatus]);
 
   const openModal = (cd?: Condutor) => {
     setEditing(cd || null);
@@ -113,10 +127,10 @@ export function CondutoresPage() {
   };
 
   const selectAll = () => {
-    if (condutores.length > 0 && condutores.every((c) => selectedIds.has(c.id))) {
+    if (condutoresFiltrados.length > 0 && condutoresFiltrados.every((c) => selectedIds.has(c.id))) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(condutores.map((c) => c.id)));
+      setSelectedIds(new Set(condutoresFiltrados.map((c) => c.id)));
     }
   };
 
@@ -240,9 +254,9 @@ export function CondutoresPage() {
         }
       />
 
-      {/* Busca */}
+      {/* Busca + Filtros */}
       <div className="card p-4 mb-5">
-        <div className="relative">
+        <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
             className="input pl-10"
@@ -251,13 +265,57 @@ export function CondutoresPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="label">Cidade</label>
+            <select
+              className="input"
+              value={filtroCidade}
+              onChange={(e) => { setFiltroCidade(e.target.value); setFiltroHub(''); }}
+            >
+              <option value="">Todas as cidades</option>
+              {cidades.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">HUB</label>
+            <select
+              className="input"
+              value={filtroHub}
+              onChange={(e) => setFiltroHub(e.target.value)}
+            >
+              <option value="">Todos os HUBs</option>
+              {hubsFiltro.map((h) => <option key={h.id} value={h.id}>{h.sigla}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Status</label>
+            <select
+              className="input"
+              value={filtroStatus}
+              onChange={(e) => setFiltroStatus(e.target.value)}
+            >
+              <option value="">Todos os status</option>
+              <option value="ativo">Ativo</option>
+              <option value="inativo">Inativo</option>
+            </select>
+          </div>
+        </div>
+        {(filtroCidade || filtroHub || filtroStatus) && (
+          <button
+            className="text-xs text-blue-600 hover:underline mt-2"
+            onClick={() => { setFiltroCidade(''); setFiltroHub(''); setFiltroStatus(''); }}
+          >
+            Limpar filtros
+          </button>
+        )}
       </div>
 
       {/* Lista */}
       <div className="card overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-slate-400">Carregando...</div>
-        ) : condutores.length === 0 ? (
+        ) : condutoresFiltrados.length === 0 ? (
           <EmptyState title="Nenhum condutor" description="Cadastre o primeiro condutor" />
         ) : (
           <div className="overflow-x-auto">
@@ -267,7 +325,7 @@ export function CondutoresPage() {
                   {selectionMode && (
                     <th className="px-3 py-3 w-10">
                       <button onClick={selectAll} title="Selecionar todos">
-                        {condutores.length > 0 && condutores.every((c) => selectedIds.has(c.id)) ? (
+                        {condutoresFiltrados.length > 0 && condutoresFiltrados.every((c) => selectedIds.has(c.id)) ? (
                           <CheckSquare size={18} className="text-brand-600" />
                         ) : (
                           <Square size={18} className="text-slate-400" />
@@ -285,7 +343,7 @@ export function CondutoresPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {condutores.map((cd) => (
+                {condutoresFiltrados.map((cd) => (
                   <tr key={cd.id} className={`hover:bg-slate-50 ${selectedIds.has(cd.id) ? 'bg-blue-50' : ''}`}>
                     {selectionMode && (
                       <td className="px-3 py-3">
@@ -525,7 +583,7 @@ export function CondutoresPage() {
             className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-brand-600"
             onClick={selectAll}
           >
-            {condutores.length > 0 && condutores.every((c) => selectedIds.has(c.id)) ? (
+            {condutoresFiltrados.length > 0 && condutoresFiltrados.every((c) => selectedIds.has(c.id)) ? (
               <CheckSquare size={18} className="text-brand-600" />
             ) : (
               <Square size={18} />
