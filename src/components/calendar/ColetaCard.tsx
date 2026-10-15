@@ -3,16 +3,19 @@ import { calcColetaStats } from '@/lib/db';
 import { formatTime, getOccupancyColor, colorClasses } from '@/utils';
 import type { ThresholdsOcupacao } from '@/types';
 import { STATUS_COLETA_LABELS } from '@/types';
-import { Clock, Users, CheckCircle2 } from 'lucide-react';
+import { Clock, Users, CheckCircle2, CheckSquare, Square } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 interface ColetaCardProps {
   coleta: Coleta;
   thresholds: ThresholdsOcupacao;
   onClick: () => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
 
-export function ColetaCard({ coleta, thresholds, onClick }: ColetaCardProps) {
+export function ColetaCard({ coleta, thresholds, onClick, selectable, selected, onToggleSelect }: ColetaCardProps) {
   const { agendados, vagas, ocupacao } = calcColetaStats(coleta);
   const color = getOccupancyColor(ocupacao, coleta.status, thresholds);
   const c = colorClasses[color];
@@ -20,8 +23,33 @@ export function ColetaCard({ coleta, thresholds, onClick }: ColetaCardProps) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-3 rounded-xl border ${c.border} ${c.bg} hover:shadow-md transition-all cursor-pointer group`}
+      className={`w-full text-left p-3 rounded-xl border ${c.border} ${c.bg} hover:shadow-md transition-all cursor-pointer group relative ${
+        selected ? 'ring-2 ring-blue-500' : ''
+      }`}
     >
+      {selectable && (
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect?.();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.stopPropagation();
+              onToggleSelect?.();
+            }
+          }}
+          className="absolute top-2 right-2 cursor-pointer"
+        >
+          {selected ? (
+            <CheckSquare size={18} className="text-blue-600" />
+          ) : (
+            <Square size={18} className="text-slate-400" />
+          )}
+        </span>
+      )}
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
           <span className="font-bold text-sm text-slate-800">{coleta.hub?.sigla}</span>
