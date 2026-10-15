@@ -9,6 +9,7 @@ import { dbMetas, dbHubs, dbCidades, dbHistorico, dbColetas } from '@/lib/db';
 import type { MetaColeta, Hub, Cidade, HistoricoAlteracao } from '@/types';
 import { DIAS_SEMANA } from '@/types';
 import { formatTime } from '@/utils';
+import { formatISO, startOfWeek, addDays } from 'date-fns';
 import { useAuthStore } from '@/store/auth';
 import { canManageGoals } from '@/store/auth';
 
@@ -35,6 +36,10 @@ export function MetasPage() {
     ativo: true,
   });
   const [diasSelecionados, setDiasSelecionados] = useState<number[]>([1]);
+  const [periodo, setPeriodo] = useState({
+    data_inicio: formatISO(startOfWeek(new Date(), { weekStartsOn: 1 }), { representation: 'date' }),
+    data_fim: formatISO(addDays(new Date(), 30), { representation: 'date' }),
+  });
 
   // Replicar
   const [replicarMeta, setReplicarMeta] = useState<MetaColeta | null>(null);
@@ -87,8 +92,8 @@ export function MetasPage() {
         await dbMetas.create({ ...form, dia_semana: dia });
       }
     }
-    // Gera coletas automaticamente para a semana atual + próximas
-    await dbMetas.gerarRecorrentes(form.hub_id);
+    // Gera coletas automaticamente para o período selecionado
+    await dbMetas.gerarRecorrentes(form.hub_id, periodo.data_inicio, periodo.data_fim);
     setModalOpen(false);
     loadData();
   };
@@ -292,6 +297,51 @@ export function MetasPage() {
             {!editing && (
               <p className="text-xs text-slate-500 mt-1">Será criada uma meta para cada dia selecionado, com o mesmo horário e meta.</p>
             )}
+          </div>
+          <div>
+            <label className="label">Período de vigência</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-500">Data início</label>
+                <input
+                  type="date"
+                  className="input mt-1"
+                  value={periodo.data_inicio}
+                  onChange={(e) => setPeriodo({ ...periodo, data_inicio: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Data fim</label>
+                <input
+                  type="date"
+                  className="input mt-1"
+                  value={periodo.data_fim}
+                  onChange={(e) => setPeriodo({ ...periodo, data_fim: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-2">
+              {[
+                { label: 'Esta semana', dias: 7 },
+                { label: '15 dias', dias: 15 },
+                { label: '30 dias', dias: 30 },
+                { label: '60 dias', dias: 60 },
+              ].map((p) => (
+                <button
+                  key={p.dias}
+                  type="button"
+                  className="px-2.5 py-1 text-xs rounded-full border bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                  onClick={() => {
+                    const inicio = formatISO(startOfWeek(new Date(), { weekStartsOn: 1 }), { representation: 'date' });
+                    const fim = formatISO(addDays(new Date(), p.dias), { representation: 'date' });
+                    setPeriodo({ data_inicio: inicio, data_fim: fim });
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">As coletas serão geradas apenas para os dias selecionados dentro deste período.</p>
           </div>
           <div>
             <label className="label">Horário</label>
