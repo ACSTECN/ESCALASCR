@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Search, Phone, Upload, FileText } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Phone, Upload, FileText, CheckSquare, Square, X } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -34,6 +34,11 @@ export function CondutoresPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Condutor | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Seleção múltipla
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
   // Importação em lote
   const [importOpen, setImportOpen] = useState(false);
@@ -95,6 +100,41 @@ export function CondutoresPage() {
     await dbCondutores.remove(deleteTarget.id);
     setDeleting(false);
     setDeleteTarget(null);
+    loadData();
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (condutores.length > 0 && condutores.every((c) => selectedIds.has(c.id))) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(condutores.map((c) => c.id)));
+    }
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      await dbCondutores.remove(id);
+    }
+    setDeleting(false);
+    setConfirmDeleteAll(false);
+    exitSelectionMode();
     loadData();
   };
 
@@ -182,6 +222,13 @@ export function CondutoresPage() {
         actions={
           canEdit && (
             <>
+              <button
+                className="btn-secondary"
+                onClick={() => (selectionMode ? exitSelectionMode() : setSelectionMode(true))}
+              >
+                {selectionMode ? <X size={16} /> : <CheckSquare size={16} />}
+                {selectionMode ? 'Cancelar' : 'Selecionar'}
+              </button>
               <button className="btn-secondary" onClick={() => setImportOpen(true)}>
                 <Upload size={16} /> Importar em lote
               </button>
@@ -217,6 +264,17 @@ export function CondutoresPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
                 <tr>
+                  {selectionMode && (
+                    <th className="px-3 py-3 w-10">
+                      <button onClick={selectAll} title="Selecionar todos">
+                        {condutores.length > 0 && condutores.every((c) => selectedIds.has(c.id)) ? (
+                          <CheckSquare size={18} className="text-brand-600" />
+                        ) : (
+                          <Square size={18} className="text-slate-400" />
+                        )}
+                      </button>
+                    </th>
+                  )}
                   <th className="text-left px-5 py-3">Condutor</th>
                   <th className="text-left px-5 py-3">CPF</th>
                   <th className="text-left px-5 py-3">Telefone</th>
@@ -228,7 +286,18 @@ export function CondutoresPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {condutores.map((cd) => (
-                  <tr key={cd.id} className="hover:bg-slate-50">
+                  <tr key={cd.id} className={`hover:bg-slate-50 ${selectedIds.has(cd.id) ? 'bg-blue-50' : ''}`}>
+                    {selectionMode && (
+                      <td className="px-3 py-3">
+                        <button onClick={() => toggleSelect(cd.id)}>
+                          {selectedIds.has(cd.id) ? (
+                            <CheckSquare size={18} className="text-brand-600" />
+                          ) : (
+                            <Square size={18} className="text-slate-400" />
+                          )}
+                        </button>
+                      </td>
+                    )}
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-semibold text-sm">
@@ -439,6 +508,42 @@ export function CondutoresPage() {
         confirmLabel="Excluir"
         loading={deleting}
       />
+
+      <ConfirmDialog
+        open={confirmDeleteAll}
+        onClose={() => setConfirmDeleteAll(false)}
+        onConfirm={deleteSelected}
+        title="Excluir condutores"
+        message={`Deseja excluir ${selectedIds.size} condutor(es) selecionado(s)?`}
+        confirmLabel="Excluir todos"
+        loading={deleting}
+      />
+
+      {selectionMode && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white rounded-2xl shadow-2xl border border-slate-200 px-5 py-3 flex items-center gap-4">
+          <button
+            className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-brand-600"
+            onClick={selectAll}
+          >
+            {condutores.length > 0 && condutores.every((c) => selectedIds.has(c.id)) ? (
+              <CheckSquare size={18} className="text-brand-600" />
+            ) : (
+              <Square size={18} />
+            )}
+            Selecionar todos
+          </button>
+          <span className="text-sm text-slate-500">
+            {selectedIds.size} condutor(es) selecionado(s)
+          </span>
+          <button
+            className="btn-danger flex items-center gap-1 disabled:opacity-50"
+            onClick={() => setConfirmDeleteAll(true)}
+            disabled={selectedIds.size === 0}
+          >
+            <Trash2 size={16} /> Excluir
+          </button>
+        </div>
+      )}
     </div>
   );
 }
