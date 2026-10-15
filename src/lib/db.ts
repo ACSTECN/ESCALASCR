@@ -202,6 +202,9 @@ export const dbAgendamentos = {
   updateStatus: (id: string, status: StatusAgendamento) =>
     supabase.from('agendamentos').update({ status }).eq('id', id).select().single(),
 
+  bulkUpdateStatus: (ids: string[], status: StatusAgendamento) =>
+    supabase.from('agendamentos').update({ status }).in('id', ids),
+
   remove: (id: string) => supabase.from('agendamentos').delete().eq('id', id),
 };
 

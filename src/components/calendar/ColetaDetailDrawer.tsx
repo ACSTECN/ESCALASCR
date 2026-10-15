@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload } from 'lucide-react';
+import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload, Download, Square, CheckSquare } from 'lucide-react';
 import type { Coleta, Condutor, Agendamento, StatusAgendamento } from '@/types';
 import { calcColetaStats, dbAgendamentos, dbCondutores, dbColetas } from '@/lib/db';
-import { formatDateBR, formatTime, getOccupancyColor, colorClasses } from '@/utils';
+import { formatDateBR, formatTime, getOccupancyColor, colorClasses, toCSV, downloadFile } from '@/utils';
 import { STATUS_AGENDAMENTO_LABELS, STATUS_COLETA_LABELS } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -54,10 +54,15 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
 
   const [filtroStatus, setFiltroStatus] = useState<StatusAgendamento | ''>('');
 
+  // Seleção múltipla
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<StatusAgendamento>('agendado');
+
   useEffect(() => {
     if (coleta) {
       dbCondutores.listAtivos().then(({ data }) => setCondutores((data as Condutor[]) || []));
       setEditingMeta(false);
+      setSelectedIds(new Set());
     }
   }, [coleta]);
 
@@ -221,6 +226,45 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     ? agendamentosAtivos.filter((a) => a.status === filtroStatus)
     : agendamentosAtivos;
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllFiltrados = () => {
+    if (agendamentosFiltrados.length > 0 && agendamentosFiltrados.every((a) => selectedIds.has(a.id))) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(agendamentosFiltrados.map((a) => a.id)));
+    }
+  };
+
+  const aplicarStatusEmLote = async () => {
+    if (selectedIds.size === 0) return;
+    await dbAgendamentos.bulkUpdateStatus(Array.from(selectedIds), bulkStatus);
+    setSelectedIds(new Set());
+    onUpdated();
+  };
+
+  const exportarAgendamentos = () => {
+    if (!coleta) return;
+    const linhas = agendamentosAtivos.map((a) => ({
+      'Condutor': a.condutor?.nome_completo || '',
+      'CPF': a.condutor?.cpf || '',
+      'Telefone': a.condutor?.telefone || '',
+      'Status': STATUS_AGENDAMENTO_LABELS[a.status],
+      'HUB': coleta.hub?.sigla || '',
+      'Data': formatDateBR(coleta.data_coleta),
+      'Horário': formatTime(coleta.horario),
+    }));
+    const csv = toCSV(linhas);
+    downloadFile(csv, `agendamentos_${coleta.hub?.sigla}_${coleta.data_coleta}.csv`);
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-40 bg-slate-900/40" onClick={onClose} />
@@ -382,9 +426,65 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
 
         {/* Lista de agendamentos */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3">
-            Condutores {filtroStatus ? STATUS_AGENDAMENTO_LABELS[filtroStatus].toLowerCase() + 's' : 'agendados'} ({agendamentosFiltrados.length})
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-slate-700">
+              Condutores {filtroStatus ? STATUS_AGENDAMENTO_LABELS[filtroStatus].toLowerCase() + 's' : 'agendados'} ({agendamentosFiltrados.length})
+            </h3>
+            <div className="flex items-center gap-1">
+              {canEdit && agendamentosFiltrados.length > 0 && (
+                <button
+                  onClick={selectAllFiltrados}
+                  title="Selecionar todos"
+                  className="p-1 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded"
+                >
+                  {agendamentosFiltrados.every((a) => selectedIds.has(a.id)) ? (
+                    <CheckSquare size={16} className="text-brand-600" />
+                  ) : (
+                    <Square size={16} />
+                  )}
+                </button>
+              )}
+              <button
+                onClick={exportarAgendamentos}
+                title="Exportar CSV"
+                className="p-1 text-slate-400 hover:text-green-600 hover:bg-slate-100 rounded"
+              >
+                <Download size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Barra de ações em lote */}
+          {canEdit && selectedIds.size > 0 && (
+            <div className="sticky top-0 z-10 mb-3 p-2.5 rounded-lg bg-brand-50 border border-brand-200 flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-brand-700 whitespace-nowrap">
+                {selectedIds.size} selecionado(s)
+              </span>
+              <select
+                value={bulkStatus}
+                onChange={(e) => setBulkStatus(e.target.value as StatusAgendamento)}
+                className="text-xs border border-slate-300 rounded px-1.5 py-1 bg-white flex-1 min-w-0"
+              >
+                {Object.entries(STATUS_AGENDAMENTO_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+              <button
+                onClick={aplicarStatusEmLote}
+                className="btn-primary !py-1 !px-2 text-xs whitespace-nowrap"
+              >
+                Aplicar
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="p-1 text-slate-400 hover:text-red-500 rounded"
+                title="Limpar seleção"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           {agendamentosFiltrados.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-4">
               {filtroStatus ? 'Nenhum condutor com este status.' : 'Nenhum condutor agendado'}
@@ -394,9 +494,18 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
               {agendamentosFiltrados.map((ag) => (
                 <div
                   key={ag.id}
-                  className={`flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100 border-l-4 ${statusBorder[ag.status]}`}
+                  className={`flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100 border-l-4 ${statusBorder[ag.status]} ${selectedIds.has(ag.id) ? 'ring-2 ring-brand-400 bg-brand-50' : ''}`}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {canEdit && (
+                      <button onClick={() => toggleSelect(ag.id)} className="flex-shrink-0">
+                        {selectedIds.has(ag.id) ? (
+                          <CheckSquare size={16} className="text-brand-600" />
+                        ) : (
+                          <Square size={16} className="text-slate-300" />
+                        )}
+                      </button>
+                    )}
                     <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
                       {ag.condutor?.nome_completo.charAt(0)}
                     </div>
@@ -408,7 +517,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     {canEdit ? (
                       <select
                         value={ag.status}

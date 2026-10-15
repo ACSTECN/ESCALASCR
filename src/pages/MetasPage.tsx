@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Copy, RefreshCw, History } from 'lucide-react';
+import { Plus, Pencil, Trash2, Copy, RefreshCw, History, Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
 import { dbMetas, dbHubs, dbCidades, dbHistorico, dbColetas } from '@/lib/db';
+import { toCSV, downloadFile } from '@/utils';
 import type { MetaColeta, Hub, Cidade, HistoricoAlteracao } from '@/types';
 import { DIAS_SEMANA } from '@/types';
 import { formatTime } from '@/utils';
@@ -145,22 +146,39 @@ export function MetasPage() {
     (m) => (!filtroCidade || m.hub?.cidade_id === filtroCidade) && (!filtroHub || m.hub_id === filtroHub)
   );
 
+  const exportarMetas = () => {
+    const linhas = metasFiltradas.map((m) => ({
+      'HUB': m.hub?.sigla || '',
+      'Cidade': m.hub?.cidade?.nome || '',
+      'Dia da semana': DIAS_SEMANA[m.dia_semana || 0],
+      'Horário': formatTime(m.horario),
+      'Meta': m.meta,
+      'Ativo': m.ativo ? 'Sim' : 'Não',
+    }));
+    downloadFile(toCSV(linhas), `metas_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   return (
     <div>
       <PageHeader
         title="Gestão de Metas"
         description="Defina metas de condutores por HUB, dia da semana e horário"
         actions={
-          canEdit && (
-            <>
-              <button className="btn-secondary" onClick={gerarColetas}>
-                <RefreshCw size={16} /> Gerar Coletas
-              </button>
-              <button className="btn-primary" onClick={() => openModal()}>
-                <Plus size={16} /> Nova Meta
-              </button>
-            </>
-          )
+          <>
+            <button className="btn-secondary" onClick={exportarMetas}>
+              <Download size={16} /> Exportar
+            </button>
+            {canEdit && (
+              <>
+                <button className="btn-secondary" onClick={gerarColetas}>
+                  <RefreshCw size={16} /> Gerar Coletas
+                </button>
+                <button className="btn-primary" onClick={() => openModal()}>
+                  <Plus size={16} /> Nova Meta
+                </button>
+              </>
+            )}
+          </>
         }
       />
 

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { History as HistoryIcon, Search } from 'lucide-react';
+import { History as HistoryIcon, Search, Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
 import { dbHistorico } from '@/lib/db';
+import { toCSV, downloadFile, formatDateBR } from '@/utils';
 import type { HistoricoAlteracao } from '@/types';
 
 const acaoColor: Record<string, 'success' | 'info' | 'danger'> = {
@@ -43,15 +44,31 @@ export function HistoricoPage() {
     (h) => (!filtroEntidade || h.entidade === filtroEntidade) && (!filtroAcao || h.acao === filtroAcao)
   );
 
+  const exportarHistorico = () => {
+    const linhas = filtrado.map((h) => ({
+      'Data': formatDateBR(h.created_at),
+      'Entidade': entidadeLabels[h.entidade] || h.entidade,
+      'Ação': h.acao,
+      'Descrição': h.depois ? JSON.stringify(h.depois).slice(0, 200) : (h.antes ? JSON.stringify(h.antes).slice(0, 200) : ''),
+      'Usuário': h.usuario?.nome || h.usuario_id || '',
+    }));
+    downloadFile(toCSV(linhas), `historico_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   return (
     <div>
       <PageHeader
         title="Histórico de Alterações"
         description="Auditoria de todas as ações no sistema"
         actions={
-          <button className="btn-secondary" onClick={loadData}>
-            <HistoryIcon size={16} /> Atualizar
-          </button>
+          <>
+            <button className="btn-secondary" onClick={exportarHistorico}>
+              <Download size={16} /> Exportar
+            </button>
+            <button className="btn-secondary" onClick={loadData}>
+              <HistoryIcon size={16} /> Atualizar
+            </button>
+          </>
         }
       />
 

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Power } from 'lucide-react';
+import { Plus, Pencil, Trash2, Power, Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
 import { dbCidades, dbHubs } from '@/lib/db';
+import { toCSV, downloadFile } from '@/utils';
 import type { Cidade, Hub } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import { isAdmin } from '@/store/auth';
@@ -100,22 +101,38 @@ export function CidadesHubsPage() {
     loadData();
   };
 
+  const exportarHubs = () => {
+    const cidadeMap = new Map(cidades.map((c) => [c.id, c.nome]));
+    const linhas = hubs.map((h) => ({
+      'HUB': h.sigla,
+      'Nome': h.nome,
+      'Cidade': cidadeMap.get(h.cidade_id) || '',
+      'Ativo': h.ativo ? 'Sim' : 'Não',
+    }));
+    downloadFile(toCSV(linhas), `hubs_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   return (
     <div>
       <PageHeader
         title="Cidades & HUBs"
         description="Gerencie a estrutura geográfica da operação"
         actions={
-          canEdit && (
-            <>
-              <button className="btn-secondary" onClick={() => openCidadeModal()}>
-                <Plus size={16} /> Nova Cidade
-              </button>
-              <button className="btn-primary" onClick={() => openHubModal()}>
-                <Plus size={16} /> Novo HUB
-              </button>
-            </>
-          )
+          <>
+            <button className="btn-secondary" onClick={exportarHubs}>
+              <Download size={16} /> Exportar
+            </button>
+            {canEdit && (
+              <>
+                <button className="btn-secondary" onClick={() => openCidadeModal()}>
+                  <Plus size={16} /> Nova Cidade
+                </button>
+                <button className="btn-primary" onClick={() => openHubModal()}>
+                  <Plus size={16} /> Novo HUB
+                </button>
+              </>
+            )}
+          </>
         }
       />
 

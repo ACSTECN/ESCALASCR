@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Search, Phone, Upload, FileText, CheckSquare, Square, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Phone, Upload, FileText, CheckSquare, Square, X, Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
 import { dbCondutores, dbCidades, dbHubs } from '@/lib/db';
+import { toCSV, downloadFile } from '@/utils';
 import type { Condutor, Cidade, Hub } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import { canWrite } from '@/store/auth';
@@ -78,6 +79,21 @@ export function CondutoresPage() {
       return true;
     });
   }, [condutores, filtroCidade, filtroHub, filtroStatus]);
+
+  const exportarCondutores = () => {
+    const cidadeMap = new Map(cidades.map((c) => [c.id, c.nome]));
+    const hubMap = new Map(hubs.map((h) => [h.id, h.sigla]));
+    const linhas = condutoresFiltrados.map((c) => ({
+      'Nome': c.nome_completo,
+      'CPF': c.cpf || '',
+      'Telefone': c.telefone || '',
+      'Cidade': cidadeMap.get(c.cidade_id || '') || '',
+      'HUB': hubMap.get(c.hub_id || '') || '',
+      'Status': c.status,
+      'Observações': c.observacoes || '',
+    }));
+    downloadFile(toCSV(linhas), `condutores_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
 
   const openModal = (cd?: Condutor) => {
     setEditing(cd || null);
@@ -234,23 +250,28 @@ export function CondutoresPage() {
         title="Condutores"
         description="Cadastro e gestão de condutores"
         actions={
-          canEdit && (
-            <>
-              <button
-                className="btn-secondary"
-                onClick={() => (selectionMode ? exitSelectionMode() : setSelectionMode(true))}
-              >
-                {selectionMode ? <X size={16} /> : <CheckSquare size={16} />}
-                {selectionMode ? 'Cancelar' : 'Selecionar'}
-              </button>
-              <button className="btn-secondary" onClick={() => setImportOpen(true)}>
-                <Upload size={16} /> Importar em lote
-              </button>
-              <button className="btn-primary" onClick={() => openModal()}>
-                <Plus size={16} /> Novo Condutor
-              </button>
-            </>
-          )
+          <>
+            <button className="btn-secondary" onClick={exportarCondutores}>
+              <Download size={16} /> Exportar
+            </button>
+            {canEdit && (
+              <>
+                <button
+                  className="btn-secondary"
+                  onClick={() => (selectionMode ? exitSelectionMode() : setSelectionMode(true))}
+                >
+                  {selectionMode ? <X size={16} /> : <CheckSquare size={16} />}
+                  {selectionMode ? 'Cancelar' : 'Selecionar'}
+                </button>
+                <button className="btn-secondary" onClick={() => setImportOpen(true)}>
+                  <Upload size={16} /> Importar em lote
+                </button>
+                <button className="btn-primary" onClick={() => openModal()}>
+                  <Plus size={16} /> Novo Condutor
+                </button>
+              </>
+            )}
+          </>
         }
       />
 

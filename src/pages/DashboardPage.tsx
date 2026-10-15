@@ -12,10 +12,11 @@ import {
   Legend,
 } from 'recharts';
 import { format, addDays, startOfWeek, endOfWeek } from 'date-fns';
-import { Target, Users, CheckCircle2, XCircle, TrendingUp, AlertTriangle, UserCheck, UserX } from 'lucide-react';
+import { Target, Users, CheckCircle2, XCircle, TrendingUp, AlertTriangle, UserCheck, UserX, Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { dbColetas } from '@/lib/db';
 import { calcColetaStats } from '@/lib/db';
+import { toCSV, downloadFile, formatDateBR, formatTime } from '@/utils';
 import type { Coleta } from '@/types';
 import { DIAS_SEMANA_CURTO } from '@/types';
 
@@ -92,6 +93,30 @@ export function DashboardPage() {
     return { metaTotal, agendados, confirmados, vagas, preenchimento, abaixoMeta, comparecimentos, ausencias };
   }, [coletas]);
 
+  const exportarDashboard = () => {
+    const linhas = coletas.map((c) => {
+      const stats = calcColetaStats(c);
+      const ags = c.agendamentos || [];
+      return {
+        'HUB': c.hub?.sigla || '',
+        'Cidade': c.hub?.cidade?.nome || '',
+        'Data': formatDateBR(c.data_coleta),
+        'Horário': formatTime(c.horario),
+        'Meta': c.meta,
+        'Agendados': stats.agendados,
+        'Vagas': stats.vagas,
+        'Ocupação %': stats.ocupacao,
+        'Status coleta': c.status,
+        'Agendado': ags.filter((a) => a.status === 'agendado').length,
+        'Confirmado': ags.filter((a) => a.status === 'confirmado').length,
+        'Compareceu': ags.filter((a) => a.status === 'compareceu').length,
+        'Ausente': ags.filter((a) => a.status === 'ausente').length,
+        'Concluído': ags.filter((a) => a.status === 'concluido').length,
+      };
+    });
+    downloadFile(toCSV(linhas), `dashboard_${dataInicio}_a_${dataFim}.csv`);
+  };
+
   const dadosPorCidade = useMemo(() => {
     const map = new Map<string, { meta: number; agendados: number }>();
     for (const c of coletas) {
@@ -159,6 +184,11 @@ export function DashboardPage() {
       <PageHeader
         title="Dashboard Operacional"
         description="Indicadores e gráficos de desempenho"
+        actions={
+          <button className="btn-secondary" onClick={exportarDashboard}>
+            <Download size={16} /> Exportar
+          </button>
+        }
       />
 
       {/* Filtro de período */}
