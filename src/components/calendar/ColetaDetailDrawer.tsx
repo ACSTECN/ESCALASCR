@@ -73,15 +73,31 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   const color = getOccupancyColor(ocupacao, coleta.status);
   const c = colorClasses[color];
 
+  const agendamentosAtuais = coleta.agendamentos || [];
+  const agendamentosAtivos = agendamentosAtuais.filter((a) => a.status !== 'cancelado');
+
   const agendar = async () => {
     if (!selectedCondutor || !coleta) return;
     setLoading(true);
-    const { error } = await dbAgendamentos.create({
-      coleta_id: coleta.id,
-      condutor_id: selectedCondutor,
-      status: 'agendado',
-      created_by: user?.id,
-    });
+
+    const agendamentoExistente = agendamentosAtuais.find((a) => a.condutor_id === selectedCondutor);
+    let error: { message: string } | null = null;
+
+    if (agendamentoExistente?.status === 'cancelado') {
+      const result = await dbAgendamentos.updateStatus(agendamentoExistente.id, 'agendado');
+      error = result.error;
+    } else if (agendamentoExistente) {
+      error = { message: 'Condutor já está agendado nesta coleta.' };
+    } else {
+      const result = await dbAgendamentos.create({
+        coleta_id: coleta.id,
+        condutor_id: selectedCondutor,
+        status: 'agendado',
+        created_by: user?.id,
+      });
+      error = result.error;
+    }
+
     if (error) {
       alert(error.message.includes('atingida') ? 'Meta atingida! Não há vagas.' : error.message.includes('conflitante') ? 'Conflito de horário para este condutor.' : error.message);
     } else {
@@ -92,13 +108,17 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   };
 
   const alterarStatus = async (ag: Agendamento, status: StatusAgendamento) => {
-    await dbAgendamentos.updateStatus(ag.id, status);
+    if (status === 'cancelado') {
+      await dbAgendamentos.remove(ag.id);
+    } else {
+      await dbAgendamentos.updateStatus(ag.id, status);
+    }
     onUpdated();
   };
 
   const confirmarCancelamento = async () => {
     if (!cancelTarget) return;
-    await dbAgendamentos.updateStatus(cancelTarget.id, 'cancelado');
+    await dbAgendamentos.remove(cancelTarget.id);
     setCancelTarget(null);
     onUpdated();
   };
@@ -196,6 +216,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     let criados = 0;
     let agendados = 0;
     const erros: string[] = [];
+    const agendamentoMap = new Map(agendamentosAtuais.map((a) => [a.condutor_id, a]));
 
     for (const item of parsed) {
       let condutor = cpfMap.get(item.cpf);
@@ -219,15 +240,32 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         condutor = { ...condutor, telefone: item.telefone };
       }
       if (condutor) {
-        const { error } = await dbAgendamentos.create({
-          coleta_id: coleta.id,
-          condutor_id: condutor.id,
-          status: 'agendado',
-          created_by: user?.id,
-        });
+        const agendamentoExistente = agendamentoMap.get(condutor.id);
+        let error: { message: string } | null = null;
+
+        if (agendamentoExistente?.status === 'cancelado') {
+          const result = await dbAgendamentos.updateStatus(agendamentoExistente.id, 'agendado');
+          error = result.error;
+        } else if (agendamentoExistente) {
+          error = { message: 'condutor já está agendado nesta coleta' };
+        } else {
+          const result = await dbAgendamentos.create({
+            coleta_id: coleta.id,
+            condutor_id: condutor.id,
+            status: 'agendado',
+            created_by: user?.id,
+          });
+          error = result.error;
+        }
+
         if (error) {
           erros.push(`${item.nome}: ${error.message.includes('atingida') ? 'meta atingida' : error.message.includes('conflitante') ? 'conflito de horário' : error.message}`);
         } else {
+          agendamentoMap.set(condutor.id, {
+            ...(agendamentoExistente || {}),
+            condutor_id: condutor.id,
+            status: 'agendado',
+          } as Agendamento);
           agendados++;
         }
       }
@@ -241,15 +279,12 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     dbCondutores.listAtivos().then(({ data }) => setCondutores((data as Condutor[]) || []));
   };
 
-  const agendamentosAtivos = (coleta.agendamentos || []).filter((a) => a.status !== 'cancelado');
-  const agendamentosCancelados = (coleta.agendamentos || []).filter((a) => a.status === 'cancelado');
-
   const statusCounts: Record<StatusAgendamento, number> = {
     agendado: 0,
     confirmado: 0,
     compareceu: 0,
     ausente: 0,
-    cancelado: agendamentosCancelados.length,
+    cancelado: 0,
     concluido: 0,
   };
   agendamentosAtivos.forEach((a) => { statusCounts[a.status]++; });
@@ -282,7 +317,11 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
 
   const aplicarStatusEmLote = async () => {
     if (selectedIds.size === 0) return;
-    await dbAgendamentos.bulkUpdateStatus(Array.from(selectedIds), bulkStatus);
+    if (bulkStatus === 'cancelado') {
+      await dbAgendamentos.bulkRemove(Array.from(selectedIds));
+    } else {
+      await dbAgendamentos.bulkUpdateStatus(Array.from(selectedIds), bulkStatus);
+    }
     setSelectedIds(new Set());
     onUpdated();
   };
@@ -591,19 +630,6 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
             </div>
           )}
 
-          {agendamentosCancelados.length > 0 && (
-            <div className="mt-4">
-              <h4 className="text-xs font-semibold text-slate-400 mb-2">Cancelados ({agendamentosCancelados.length})</h4>
-              <div className="space-y-1 opacity-60">
-                {agendamentosCancelados.map((ag) => (
-                  <div key={ag.id} className="flex items-center justify-between p-2 rounded bg-slate-50 line-through">
-                    <span className="text-sm text-slate-600">{ag.condutor?.nome_completo}</span>
-                    <span className="badge bg-slate-200 text-slate-500">Cancelado</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           </div>
         </div>
       </div>
@@ -612,9 +638,9 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         open={!!cancelTarget}
         onClose={() => setCancelTarget(null)}
         onConfirm={confirmarCancelamento}
-        title="Cancelar agendamento"
-        message={`Deseja cancelar o agendamento de ${cancelTarget?.condutor?.nome_completo}? A vaga será liberada.`}
-        confirmLabel="Cancelar agendamento"
+        title="Remover agendamento"
+        message={`Deseja remover o agendamento de ${cancelTarget?.condutor?.nome_completo}? A vaga será liberada.`}
+        confirmLabel="Remover agendamento"
       />
 
       <ConfirmDialog
