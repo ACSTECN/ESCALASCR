@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import {
   BarChart,
   Bar,
+  LabelList,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -256,8 +257,12 @@ export function DashboardPage() {
                 <XAxis dataKey="cidade" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Bar dataKey="meta" fill="#94a3b8" name="Meta" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="agendados" fill="#3b82f6" name="Agendados" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="meta" fill="#94a3b8" name="Meta" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="meta" position="top" fill="#64748b" fontSize={11} />
+                </Bar>
+                <Bar dataKey="agendados" fill="#3b82f6" name="Agendados" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="agendados" position="top" fill="#2563eb" fontSize={11} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -272,8 +277,12 @@ export function DashboardPage() {
                 <XAxis dataKey="hub" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Bar dataKey="meta" fill="#94a3b8" name="Meta" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="agendados" fill="#10b981" name="Agendados" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="meta" fill="#94a3b8" name="Meta" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="meta" position="top" fill="#64748b" fontSize={11} />
+                </Bar>
+                <Bar dataKey="agendados" fill="#10b981" name="Agendados" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="agendados" position="top" fill="#059669" fontSize={11} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
