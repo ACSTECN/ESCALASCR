@@ -24,8 +24,8 @@ export function LoginPage() {
       if (error) throw error;
       await refreshProfile();
       navigate(from, { replace: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao entrar');
+    } catch (err: any) {
+      setError(err?.message || (err && typeof err === 'object' ? JSON.stringify(err) : 'Erro ao entrar'));
     } finally {
       setLoading(false);
     }
@@ -46,8 +46,8 @@ export function LoginPage() {
       });
       if (error) throw error;
       setError('Cadastro criado! Verifique seu email para confirmar.');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao cadastrar');
+    } catch (err: any) {
+      setError(err?.message || (err && typeof err === 'object' ? JSON.stringify(err) : 'Erro ao cadastrar'));
     } finally {
       setLoading(false);
     }
