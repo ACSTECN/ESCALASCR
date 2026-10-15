@@ -122,21 +122,52 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     onUpdated();
   };
 
-  const parseImportText = (text: string): { nome: string; cpf: string }[] => {
+  const parseImportText = (text: string): { nome: string; cpf: string; telefone: string }[] => {
     const linhas = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    const resultados: { nome: string; cpf: string }[] = [];
+    const resultados: { nome: string; cpf: string; telefone: string }[] = [];
+    const soDigitos = (s: string) => s.replace(/\D/g, '');
+
     for (const linha of linhas) {
       if (/^(nome|name|cpf)/i.test(linha)) continue;
       let partes = linha.split(/\t|,|;/).map((p) => p.trim()).filter(Boolean);
+
       if (partes.length === 1) {
-        const match = linha.match(/^(.+?)\s+(\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{11})$/);
-        if (match) partes = [match[1].trim(), match[2].trim()];
+        const matchTelefone = linha.match(
+          /^(.+?)\s+(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\s+((?:\d{2}\s?)?\d{4,5}-?\d{4})$/
+        );
+        if (matchTelefone) {
+          partes = [matchTelefone[1].trim(), matchTelefone[2].trim(), matchTelefone[3].trim()];
+        } else {
+          const match = linha.match(/^(.+?)\s+(\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{11})$/);
+          if (match) partes = [match[1].trim(), match[2].trim()];
+        }
       }
-      if (partes.length >= 2) {
-        const cpf = partes[partes.length - 1].replace(/\D/g, '');
-        const nome = partes.slice(0, -1).join(' ').trim();
-        if (nome && cpf.length >= 11) resultados.push({ nome, cpf });
+
+      let nome = '';
+      let cpf = '';
+      let telefone = '';
+
+      // 3+ colunas: nome, CPF, telefone
+      if (partes.length >= 3) {
+        const penultimo = soDigitos(partes[partes.length - 2]);
+        const ultimo = soDigitos(partes[partes.length - 1]);
+        if (penultimo.length === 11 && (ultimo.length === 10 || ultimo.length === 11)) {
+          cpf = penultimo;
+          telefone = ultimo;
+          nome = partes.slice(0, -2).join(' ').trim();
+        }
       }
+
+      // 2 colunas: nome, CPF
+      if (!cpf && partes.length >= 2) {
+        const ultimo = soDigitos(partes[partes.length - 1]);
+        if (ultimo.length === 11) {
+          cpf = ultimo;
+          nome = partes.slice(0, -1).join(' ').trim();
+        }
+      }
+
+      if (nome && cpf.length === 11) resultados.push({ nome, cpf, telefone });
     }
     return resultados;
   };
@@ -172,6 +203,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         const { data: novo } = await dbCondutores.bulkCreate([{
           nome_completo: item.nome,
           cpf: item.cpf,
+          telefone: item.telefone || null,
           cidade_id: coleta.hub?.cidade_id || null,
           hub_id: coleta.hub_id,
           status: 'ativo',
@@ -180,6 +212,10 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
           condutor = novo[0] as Condutor;
           criados++;
         }
+      } else if (item.telefone && !condutor.telefone) {
+        // Complementa o telefone caso o condutor existente ainda não tenha
+        await dbCondutores.update(condutor.id, { telefone: item.telefone });
+        condutor = { ...condutor, telefone: item.telefone };
       }
       if (condutor) {
         const { error } = await dbAgendamentos.create({
@@ -579,11 +615,11 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
       <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Importar e agendar condutores" size="md">
         <div className="space-y-3">
           <p className="text-sm text-slate-600">
-            Cole uma lista de <strong>nome e CPF</strong>, um por linha. Os condutores já cadastrados serão agendados; os novos serão criados automaticamente.
+            Cole uma lista de <strong>nome, CPF e telefone</strong> (telefone opcional), um por linha. Os condutores já cadastrados serão agendados; os novos serão criados automaticamente.
           </p>
           <textarea
             className="input h-48 font-mono text-sm"
-            placeholder={'João Silva, 123.456.789-00\nMaria Santos 987.654.321-00\nCarlos Souza; 111.222.333-44'}
+            placeholder={'João Silva, 123.456.789-00, (11) 91234-5678\nMaria Santos 987.654.321-00 21998765432\nCarlos Souza; 111.222.333-44'}
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
           />

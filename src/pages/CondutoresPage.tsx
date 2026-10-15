@@ -168,32 +168,59 @@ export function CondutoresPage() {
     loadData();
   };
 
-  // Parser para copia e cola (nome e CPF por linha, separados por tab, vírgula, ponto e vírgula ou espaços)
-  const parseImportText = (text: string): { nome: string; cpf: string }[] => {
+  // Parser para copia e cola (nome, CPF e telefone por linha)
+  // Aceita separadores: tab, vírgula, ponto e vírgula ou espaços
+  const parseImportText = (text: string): { nome: string; cpf: string; telefone: string }[] => {
     const linhas = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    const resultados: { nome: string; cpf: string }[] = [];
+    const resultados: { nome: string; cpf: string; telefone: string }[] = [];
+    const soDigitos = (s: string) => s.replace(/\D/g, '');
 
     for (const linha of linhas) {
       // Remove linha de cabeçalho
       if (/^(nome|name|cpf)/i.test(linha)) continue;
 
-      // Tenta separar por tab, vírgula, ponto e vírgula ou múltiplos espaços
+      // Tenta separar por tab, vírgula, ponto e vírgula
       let partes = linha.split(/\t|,|;/).map((p) => p.trim()).filter(Boolean);
 
-      // Se só tem 1 parte, tenta separar por espaços (o CPF tem 11 dígitos ou 14 com máscara)
+      // Se só tem 1 parte, tenta separar por espaços (nome + CPF + telefone opcional)
       if (partes.length === 1) {
-        const match = linha.match(/^(.+?)\s+(\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{11})$/);
-        if (match) {
-          partes = [match[1].trim(), match[2].trim()];
+        const matchTelefone = linha.match(
+          /^(.+?)\s+(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\s+((?:\d{2}\s?)?\d{4,5}-?\d{4})$/
+        );
+        if (matchTelefone) {
+          partes = [matchTelefone[1].trim(), matchTelefone[2].trim(), matchTelefone[3].trim()];
+        } else {
+          const match = linha.match(/^(.+?)\s+(\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{11})$/);
+          if (match) partes = [match[1].trim(), match[2].trim()];
         }
       }
 
-      if (partes.length >= 2) {
-        const cpf = partes[partes.length - 1].replace(/\D/g, '');
-        const nome = partes.slice(0, -1).join(' ').trim();
-        if (nome && cpf.length >= 11) {
-          resultados.push({ nome, cpf });
+      let nome = '';
+      let cpf = '';
+      let telefone = '';
+
+      // 3+ colunas: nome, CPF, telefone
+      if (partes.length >= 3) {
+        const penultimo = soDigitos(partes[partes.length - 2]);
+        const ultimo = soDigitos(partes[partes.length - 1]);
+        if (penultimo.length === 11 && (ultimo.length === 10 || ultimo.length === 11)) {
+          cpf = penultimo;
+          telefone = ultimo;
+          nome = partes.slice(0, -2).join(' ').trim();
         }
+      }
+
+      // 2 colunas: nome, CPF
+      if (!cpf && partes.length >= 2) {
+        const ultimo = soDigitos(partes[partes.length - 1]);
+        if (ultimo.length === 11) {
+          cpf = ultimo;
+          nome = partes.slice(0, -1).join(' ').trim();
+        }
+      }
+
+      if (nome && cpf.length === 11) {
+        resultados.push({ nome, cpf, telefone });
       }
     }
     return resultados;
@@ -225,6 +252,7 @@ export function CondutoresPage() {
     const dados = parsed.map((p) => ({
       nome_completo: p.nome,
       cpf: p.cpf,
+      telefone: p.telefone || null,
       cidade_id: importCidade || null,
       hub_id: importHub || null,
       status: 'ativo',
@@ -518,8 +546,8 @@ export function CondutoresPage() {
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
             <p className="font-medium mb-1">Como usar:</p>
-            <p>Cole uma lista com <strong>Nome e CPF</strong> por linha, separados por vírgula, tab, ponto e vírgula ou espaço.</p>
-            <p className="mt-1 text-xs text-blue-600">Exemplo: João da Silva, 123.456.789-00</p>
+            <p>Cole uma lista com <strong>Nome, CPF e Telefone</strong> por linha, separados por vírgula, tab, ponto e vírgula ou espaço. O telefone é opcional.</p>
+            <p className="mt-1 text-xs text-blue-600">Exemplo: João da Silva, 123.456.789-00, (11) 91234-5678</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -553,7 +581,7 @@ export function CondutoresPage() {
               rows={10}
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
-              placeholder={`João da Silva, 123.456.789-00\nMaria Souza; 987.654.321-00\nPedro Santos\t456.789.123-00`}
+              placeholder={`João da Silva, 123.456.789-00, (11) 91234-5678\nMaria Souza; 987.654.321-00; (21) 99876-5432\nPedro Santos\t456.789.123-00\t31988887777`}
             />
           </div>
 
