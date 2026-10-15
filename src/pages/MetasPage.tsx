@@ -293,15 +293,56 @@ export function MetasPage() {
               <p className="text-xs text-slate-500 mt-1">Será criada uma meta para cada dia selecionado, com o mesmo horário e meta.</p>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Horário</label>
-              <input type="time" className="input" value={form.horario} onChange={(e) => setForm({ ...form, horario: e.target.value })} />
+          <div>
+            <label className="label">Horário</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {[
+                { label: 'Manhã', horario: '08:00' },
+                { label: '08:30', horario: '08:30' },
+                { label: '09:00', horario: '09:00' },
+                { label: 'Tarde', horario: '14:00' },
+                { label: '14:30', horario: '14:30' },
+                { label: '15:00', horario: '15:00' },
+                { label: '17:00', horario: '17:00' },
+                { label: 'Noite', horario: '18:00' },
+                { label: '19:00', horario: '19:00' },
+                { label: '20:00', horario: '20:00' },
+              ].map((t) => (
+                <button
+                  key={t.horario}
+                  type="button"
+                  className={`px-3 py-1 text-xs rounded-full border transition ${
+                    form.horario === t.horario
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                  }`}
+                  onClick={() => setForm({ ...form, horario: t.horario })}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
-            <div>
-              <label className="label">Meta de condutores</label>
-              <input type="number" min={0} className="input" value={form.meta} onChange={(e) => setForm({ ...form, meta: Number(e.target.value) })} />
+            <input type="time" className="input" value={form.horario} onChange={(e) => setForm({ ...form, horario: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Meta de condutores</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {[10, 15, 20, 25, 28, 30, 32, 35, 40].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  className={`px-3 py-1 text-xs rounded-full border transition ${
+                    form.meta === m
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                  }`}
+                  onClick={() => setForm({ ...form, meta: m })}
+                >
+                  {m}
+                </button>
+              ))}
             </div>
+            <input type="number" min={0} className="input" value={form.meta} onChange={(e) => setForm({ ...form, meta: Number(e.target.value) })} />
           </div>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={form.ativo} onChange={(e) => setForm({ ...form, ativo: e.target.checked })} />
