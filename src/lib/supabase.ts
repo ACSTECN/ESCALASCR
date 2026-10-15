@@ -21,3 +21,4 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 export const isSupabaseConfigured = isConfigured;
+export { supabaseUrl, supabaseAnonKey };

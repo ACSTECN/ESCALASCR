@@ -1,16 +1,41 @@
 import { useEffect, useState } from 'react';
-import { Save, Settings as SettingsIcon } from 'lucide-react';
+import { Save, Settings as SettingsIcon, Users, Plus, Trash2, Pencil } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { dbConfig } from '@/lib/db';
-import type { ThresholdsOcupacao } from '@/types';
+import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { dbConfig, dbUsuarios } from '@/lib/db';
+import { useAuthStore } from '@/store/auth';
+import { isAdmin } from '@/store/auth';
+import type { ThresholdsOcupacao, Usuario } from '@/types';
+import type { PerfilUsuario } from '@/types';
 
 const DEFAULT_THRESHOLDS: ThresholdsOcupacao = { vermelho: 70, amarelo: 100, verde: 100 };
 
 export function ConfiguracoesPage() {
+  const user = useAuthStore((s) => s.user);
+  const canEdit = isAdmin(user?.perfil);
+
   const [thresholds, setThresholds] = useState<ThresholdsOcupacao>(DEFAULT_THRESHOLDS);
   const [intervalo, setIntervalo] = useState(60);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Gestão de usuários
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<Usuario | null>(null);
+  const [formUser, setFormUser] = useState({ nome: '', email: '', senha: '', perfil: 'operador' as PerfilUsuario });
+  const [savingUser, setSavingUser] = useState(false);
+  const [userError, setUserError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Usuario | null>(null);
+
+  const loadUsuarios = async () => {
+    setLoadingUsers(true);
+    const { data } = await dbUsuarios.list();
+    setUsuarios((data as Usuario[]) || []);
+    setLoadingUsers(false);
+  };
 
   useEffect(() => {
     (async () => {
@@ -19,7 +44,59 @@ export function ConfiguracoesPage() {
       const { data: i } = await dbConfig.get('intervalo_conflito_minutos');
       if (i?.valor) setIntervalo(Number(i.valor));
     })();
-  }, []);
+    if (canEdit) loadUsuarios();
+  }, [canEdit]);
+
+  const openUserModal = (u?: Usuario) => {
+    setEditingUser(u || null);
+    setUserError(null);
+    if (u) {
+      setFormUser({ nome: u.nome, email: u.email || '', senha: '', perfil: (u.perfil as PerfilUsuario) || 'operador' });
+    } else {
+      setFormUser({ nome: '', email: '', senha: '', perfil: 'operador' });
+    }
+    setModalOpen(true);
+  };
+
+  const salvarUsuario = async () => {
+    if (!formUser.nome || !formUser.email) {
+      setUserError('Nome e email são obrigatórios');
+      return;
+    }
+    if (!editingUser && !formUser.senha) {
+      setUserError('Senha é obrigatória para novo usuário');
+      return;
+    }
+    setSavingUser(true);
+    setUserError(null);
+    if (editingUser) {
+      // Atualiza perfil/nome na tabela usuarios
+      const update: Partial<Usuario> = { nome: formUser.nome, perfil: formUser.perfil };
+      await dbUsuarios.update(editingUser.id, update);
+    } else {
+      const { error } = await dbUsuarios.create({
+        nome: formUser.nome,
+        email: formUser.email,
+        password: formUser.senha,
+        perfil: formUser.perfil,
+      });
+      if (error) {
+        setUserError(error.message);
+        setSavingUser(false);
+        return;
+      }
+    }
+    setModalOpen(false);
+    loadUsuarios();
+    setSavingUser(false);
+  };
+
+  const excluirUsuario = async () => {
+    if (!deleteTarget) return;
+    await dbUsuarios.remove(deleteTarget.id);
+    setDeleteTarget(null);
+    loadUsuarios();
+  };
 
   const salvar = async () => {
     setSaving(true);
@@ -133,6 +210,149 @@ export function ConfiguracoesPage() {
           </div>
         </div>
       </div>
+
+      {/* Gestão de Usuários */}
+      {canEdit && (
+        <div className="card p-5 mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Users size={18} className="text-slate-500" />
+              <h2 className="font-semibold text-slate-800">Usuários ({usuarios.length})</h2>
+            </div>
+            <button className="btn-primary" onClick={() => openUserModal()}>
+              <Plus size={16} /> Novo usuário
+            </button>
+          </div>
+
+          {loadingUsers ? (
+            <div className="p-8 text-center text-slate-400">Carregando...</div>
+          ) : usuarios.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">Nenhum usuário cadastrado</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500 text-xs uppercase">
+                    <th className="text-left px-3 py-2">Nome</th>
+                    <th className="text-left px-3 py-2">E-mail</th>
+                    <th className="text-left px-3 py-2">Perfil</th>
+                    <th className="text-right px-3 py-2">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {usuarios.map((u) => (
+                    <tr key={u.id} className="hover:bg-slate-50">
+                      <td className="px-3 py-2.5 font-medium text-slate-800">{u.nome}</td>
+                      <td className="px-3 py-2.5 text-slate-600">{u.email || '—'}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`badge ${
+                          u.perfil === 'admin' ? 'bg-purple-100 text-purple-700' :
+                          u.perfil === 'supervisor' ? 'bg-blue-100 text-blue-700' :
+                          u.perfil === 'operador' ? 'bg-emerald-100 text-emerald-700' :
+                          'bg-slate-100 text-slate-600'
+                        }`}>
+                          {u.perfil}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <button
+                          className="p-1 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded mr-1"
+                          onClick={() => openUserModal(u)}
+                          title="Editar"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        {u.id !== user?.id && (
+                          <button
+                            className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded"
+                            onClick={() => setDeleteTarget(u)}
+                            title="Excluir"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal de usuário */}
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingUser ? 'Editar usuário' : 'Novo usuário'} size="md">
+        <div className="space-y-4">
+          <div>
+            <label className="label">Nome</label>
+            <input
+              className="input"
+              value={formUser.nome}
+              onChange={(e) => setFormUser({ ...formUser, nome: e.target.value })}
+              placeholder="Nome completo"
+            />
+          </div>
+          <div>
+            <label className="label">E-mail</label>
+            <input
+              type="email"
+              className="input"
+              value={formUser.email}
+              onChange={(e) => setFormUser({ ...formUser, email: e.target.value })}
+              placeholder="usuario@email.com"
+              disabled={!!editingUser}
+            />
+          </div>
+          <div>
+            <label className="label">
+              {editingUser ? 'Nova senha (deixe vazio para manter)' : 'Senha'}
+            </label>
+            <input
+              type="password"
+              className="input"
+              value={formUser.senha}
+              onChange={(e) => setFormUser({ ...formUser, senha: e.target.value })}
+              placeholder="••••••••"
+            />
+          </div>
+          <div>
+            <label className="label">Perfil</label>
+            <select
+              className="input"
+              value={formUser.perfil}
+              onChange={(e) => setFormUser({ ...formUser, perfil: e.target.value as PerfilUsuario })}
+            >
+              <option value="admin">Admin</option>
+              <option value="supervisor">Supervisor</option>
+              <option value="operador">Operador</option>
+              <option value="visualizador">Visualizador</option>
+            </select>
+          </div>
+
+          {userError && (
+            <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
+              {userError}
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-2">
+            <button className="btn-primary flex-1" onClick={salvarUsuario} disabled={savingUser}>
+              {savingUser ? 'Salvando...' : editingUser ? 'Salvar' : 'Criar usuário'}
+            </button>
+            <button className="btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={excluirUsuario}
+        title="Excluir usuário"
+        message={`Deseja excluir o usuário ${deleteTarget?.nome}? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '@/lib/supabase';
 import { startOfWeek, addDays, formatISO } from 'date-fns';
 import type {
   Cidade,
@@ -216,6 +216,42 @@ export const dbUsuarios = {
   get: (id: string) => supabase.from('usuarios').select('*').eq('id', id).single(),
   update: (id: string, data: Partial<Usuario>) =>
     supabase.from('usuarios').update(data).eq('id', id).select().single(),
+
+  // Cria usuário via Edge Function (precisa de service_role)
+  create: async (data: { email: string; password: string; nome: string; perfil: string }) => {
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+    const res = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        apikey: supabaseAnonKey,
+      },
+      body: JSON.stringify(data),
+    });
+    const json = await res.json();
+    if (!res.ok) return { data: null, error: new Error(json.error || 'Erro ao criar usuário') };
+    return { data: json.user, error: null };
+  },
+
+  // Remove usuário via Edge Function
+  remove: async (id: string) => {
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+    const res = await fetch(`${supabaseUrl}/functions/v1/delete-user`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        apikey: supabaseAnonKey,
+      },
+      body: JSON.stringify({ id }),
+    });
+    const json = await res.json();
+    if (!res.ok) return { data: null, error: new Error(json.error || 'Erro ao excluir usuário') };
+    return { data: json, error: null };
+  },
 };
 
 // ============================================================
