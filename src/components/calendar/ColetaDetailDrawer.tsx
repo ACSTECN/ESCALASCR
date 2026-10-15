@@ -34,6 +34,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   const [loading, setLoading] = useState(false);
   const [editingMeta, setEditingMeta] = useState(false);
   const [novaMeta, setNovaMeta] = useState(0);
+  const [deleteColeta, setDeleteColeta] = useState(false);
 
   useEffect(() => {
     if (coleta) {
@@ -90,6 +91,14 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     setEditingMeta(true);
   };
 
+  const excluirColeta = async () => {
+    if (!coleta) return;
+    await dbColetas.remove(coleta.id);
+    setDeleteColeta(false);
+    onClose();
+    onUpdated();
+  };
+
   const agendamentosAtivos = (coleta.agendamentos || []).filter((a) => a.status !== 'cancelado');
   const agendamentosCancelados = (coleta.agendamentos || []).filter((a) => a.status === 'cancelado');
 
@@ -107,9 +116,20 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
               </div>
               <p className="text-sm text-slate-600">{coleta.hub?.nome} • {coleta.hub?.cidade?.nome}</p>
             </div>
-            <button onClick={onClose} className="p-1.5 hover:bg-white/50 rounded-lg">
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-1">
+              {canEdit && (
+                <button
+                  onClick={() => setDeleteColeta(true)}
+                  className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"
+                  title="Excluir coleta"
+                >
+                  <Trash2 size={18} />
+                </button>
+              )}
+              <button onClick={onClose} className="p-1.5 hover:bg-white/50 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-4 mt-3 text-sm">
             <span className="flex items-center gap-1 text-slate-700">
@@ -266,6 +286,15 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         title="Cancelar agendamento"
         message={`Deseja cancelar o agendamento de ${cancelTarget?.condutor?.nome_completo}? A vaga será liberada.`}
         confirmLabel="Cancelar agendamento"
+      />
+
+      <ConfirmDialog
+        open={deleteColeta}
+        onClose={() => setDeleteColeta(false)}
+        onConfirm={excluirColeta}
+        title="Excluir coleta"
+        message={`Deseja excluir a coleta ${coleta?.hub?.sigla} de ${coleta ? formatDateBR(coleta.data_coleta) : ''} às ${coleta ? formatTime(coleta.horario) : ''}? Todos os agendamentos desta coleta também serão removidos.`}
+        confirmLabel="Excluir coleta"
       />
     </>
   );
