@@ -313,7 +313,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   return (
     <>
       <div className="fixed inset-0 z-40 bg-slate-900/40" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-[760px] bg-white shadow-2xl flex flex-col animate-slide-in-right">
+      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-[1120px] bg-white shadow-2xl flex flex-col animate-slide-in-right">
         {/* Header */}
         <div className={`${c.bg} ${c.border} border-b px-6 py-5`}>
           <div className="flex items-start justify-between">
@@ -347,130 +347,128 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
           </div>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-3 gap-4 px-6 py-5 border-b border-slate-200">
-          <div className="text-center">
-            <div className="text-xs text-slate-500">Meta</div>
-            {editingMeta ? (
-              <div className="flex items-center justify-center gap-1">
-                <input
-                  type="number"
-                  min={0}
-                  className="w-16 text-center text-lg font-bold text-slate-800 border border-slate-300 rounded px-1 py-0.5"
-                  value={novaMeta}
-                  onChange={(e) => setNovaMeta(Number(e.target.value))}
-                  autoFocus
-                />
-                <button className="p-1 text-green-600 hover:bg-green-50 rounded" onClick={salvarMeta} title="Salvar">
-                  <Check size={16} />
-                </button>
-                <button className="p-1 text-slate-400 hover:bg-slate-100 rounded" onClick={() => setEditingMeta(false)} title="Cancelar">
-                  <X size={16} />
-                </button>
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)]">
+          <div className="min-h-0 overflow-y-auto border-b border-slate-200 lg:border-b-0 lg:border-r lg:border-slate-200">
+            <div className="grid grid-cols-3 gap-4 px-6 py-5 border-b border-slate-200">
+              <div className="text-center">
+                <div className="text-xs text-slate-500">Meta</div>
+                {editingMeta ? (
+                  <div className="flex items-center justify-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      className="w-16 text-center text-lg font-bold text-slate-800 border border-slate-300 rounded px-1 py-0.5"
+                      value={novaMeta}
+                      onChange={(e) => setNovaMeta(Number(e.target.value))}
+                      autoFocus
+                    />
+                    <button className="p-1 text-green-600 hover:bg-green-50 rounded" onClick={salvarMeta} title="Salvar">
+                      <Check size={16} />
+                    </button>
+                    <button className="p-1 text-slate-400 hover:bg-slate-100 rounded" onClick={() => setEditingMeta(false)} title="Cancelar">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-lg font-bold text-slate-800 flex items-center justify-center gap-1">
+                    <Target size={14} className="text-brand-500" /> {coleta.meta}
+                    {canEdit && (
+                      <button className="p-0.5 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded" onClick={iniciarEdicaoMeta} title="Editar meta">
+                        <Pencil size={12} />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="text-lg font-bold text-slate-800 flex items-center justify-center gap-1">
-                <Target size={14} className="text-brand-500" /> {coleta.meta}
-                {canEdit && (
-                  <button className="p-0.5 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded" onClick={iniciarEdicaoMeta} title="Editar meta">
-                    <Pencil size={12} />
+              <div className="text-center">
+                <div className="text-xs text-slate-500">Agendados</div>
+                <div className={`text-lg font-bold flex items-center justify-center gap-1 ${c.text}`}>
+                  <Users size={14} /> {agendados}
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-slate-500">Vagas</div>
+                <div className="text-lg font-bold text-slate-800">{vagas}</div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-b border-slate-200">
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="text-slate-600">Ocupação</span>
+                <span className="font-semibold">{ocupacao}%</span>
+              </div>
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className={`h-full ${c.bar} rounded-full transition-all`} style={{ width: `${Math.min(ocupacao, 100)}%` }} />
+              </div>
+            </div>
+
+            {agendamentosAtivos.length > 0 && (
+              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/60">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Efetividade</span>
+                  <span className={`text-sm font-bold ${taxaComparecimento >= 80 ? 'text-green-600' : taxaComparecimento >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                    {taxaComparecimento}% comparecimento
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  {([
+                    { key: 'agendado', label: 'Agendados', color: 'text-blue-600 bg-blue-50 border-blue-200' },
+                    { key: 'confirmado', label: 'Confirmados', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+                    { key: 'compareceu', label: 'Compareceram', color: 'text-green-600 bg-green-50 border-green-200' },
+                    { key: 'ausente', label: 'Ausentes', color: 'text-red-600 bg-red-50 border-red-200' },
+                  ] as const).map((s) => (
+                    <button
+                      key={s.key}
+                      onClick={() => setFiltroStatus(filtroStatus === s.key ? '' : s.key)}
+                      className={`p-2.5 rounded-lg border text-center transition ${s.color} ${filtroStatus === s.key ? 'ring-2 ring-offset-1 ring-slate-400' : 'hover:opacity-80'}`}
+                    >
+                      <div className="text-base font-bold leading-none">{statusCounts[s.key]}</div>
+                      <div className="text-[10px] mt-0.5 font-medium opacity-80">{s.label}</div>
+                    </button>
+                  ))}
+                </div>
+                {filtroStatus && (
+                  <button
+                    className="text-[11px] text-blue-600 hover:underline"
+                    onClick={() => setFiltroStatus('')}
+                  >
+                    ← Ver todos ({agendamentosAtivos.length})
                   </button>
                 )}
               </div>
             )}
-          </div>
-          <div className="text-center">
-            <div className="text-xs text-slate-500">Agendados</div>
-            <div className={`text-lg font-bold flex items-center justify-center gap-1 ${c.text}`}>
-              <Users size={14} /> {agendados}
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-xs text-slate-500">Vagas</div>
-            <div className="text-lg font-bold text-slate-800">{vagas}</div>
-          </div>
-        </div>
 
-        {/* Progress */}
-        <div className="px-6 py-4 border-b border-slate-200">
-          <div className="flex items-center justify-between text-sm mb-1">
-            <span className="text-slate-600">Ocupação</span>
-            <span className="font-semibold">{ocupacao}%</span>
-          </div>
-          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div className={`h-full ${c.bar} rounded-full transition-all`} style={{ width: `${Math.min(ocupacao, 100)}%` }} />
-          </div>
-        </div>
-
-        {/* Efetividade / Resumo de status */}
-        {agendamentosAtivos.length > 0 && (
-          <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/60">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Efetividade</span>
-              <span className={`text-sm font-bold ${taxaComparecimento >= 80 ? 'text-green-600' : taxaComparecimento >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-                {taxaComparecimento}% comparecimento
-              </span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
-              {([
-                { key: 'agendado', label: 'Agendados', color: 'text-blue-600 bg-blue-50 border-blue-200' },
-                { key: 'confirmado', label: 'Confirmados', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
-                { key: 'compareceu', label: 'Compareceram', color: 'text-green-600 bg-green-50 border-green-200' },
-                { key: 'ausente', label: 'Ausentes', color: 'text-red-600 bg-red-50 border-red-200' },
-              ] as const).map((s) => (
+            {canEdit && (
+              <div className="px-6 py-4">
+                <label className="label">Agendar condutor</label>
+                <div className="flex gap-2 mb-2">
+                  <select
+                    className="input min-w-0"
+                    value={selectedCondutor}
+                    onChange={(e) => setSelectedCondutor(e.target.value)}
+                  >
+                    <option value="">Selecione um condutor...</option>
+                    {condutores
+                      .filter((cd) => !coleta.agendamentos?.some((a) => a.condutor_id === cd.id && a.status !== 'cancelado'))
+                      .map((cd) => (
+                        <option key={cd.id} value={cd.id}>{cd.nome_completo}</option>
+                      ))}
+                  </select>
+                  <button className="btn-primary flex-shrink-0 min-w-[52px]" onClick={agendar} disabled={!selectedCondutor || loading}>
+                    <Plus size={16} />
+                  </button>
+                </div>
                 <button
-                  key={s.key}
-                  onClick={() => setFiltroStatus(filtroStatus === s.key ? '' : s.key)}
-                  className={`p-2.5 rounded-lg border text-center transition ${s.color} ${filtroStatus === s.key ? 'ring-2 ring-offset-1 ring-slate-400' : 'hover:opacity-80'}`}
+                  className="btn-secondary w-full"
+                  onClick={() => { setImportOpen(true); setImportResult(null); }}
                 >
-                  <div className="text-base font-bold leading-none">{statusCounts[s.key]}</div>
-                  <div className="text-[10px] mt-0.5 font-medium opacity-80">{s.label}</div>
+                  <Upload size={16} /> Importar e agendar em lote
                 </button>
-              ))}
-            </div>
-            {filtroStatus && (
-              <button
-                className="text-[11px] text-blue-600 hover:underline"
-                onClick={() => setFiltroStatus('')}
-              >
-                ← Ver todos ({agendamentosAtivos.length})
-              </button>
+              </div>
             )}
           </div>
-        )}
 
-        {/* Agendar condutor */}
-        {canEdit && (
-          <div className="px-6 py-4 border-b border-slate-200">
-            <label className="label">Agendar condutor</label>
-            <div className="flex gap-2 mb-2">
-              <select
-                className="input min-w-0"
-                value={selectedCondutor}
-                onChange={(e) => setSelectedCondutor(e.target.value)}
-              >
-                <option value="">Selecione um condutor...</option>
-                {condutores
-                  .filter((cd) => !coleta.agendamentos?.some((a) => a.condutor_id === cd.id && a.status !== 'cancelado'))
-                  .map((cd) => (
-                    <option key={cd.id} value={cd.id}>{cd.nome_completo}</option>
-                  ))}
-              </select>
-              <button className="btn-primary flex-shrink-0 min-w-[52px]" onClick={agendar} disabled={!selectedCondutor || loading}>
-                <Plus size={16} />
-              </button>
-            </div>
-            <button
-              className="btn-secondary w-full"
-              onClick={() => { setImportOpen(true); setImportResult(null); }}
-            >
-              <Upload size={16} /> Importar e agendar em lote
-            </button>
-          </div>
-        )}
-
-        {/* Lista de agendamentos */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="min-h-0 overflow-y-auto px-6 py-5">
           <div className="flex items-center justify-between gap-3 mb-4">
             <h3 className="text-sm font-semibold text-slate-700">
               Condutores {filtroStatus ? STATUS_AGENDAMENTO_LABELS[filtroStatus].toLowerCase() + 's' : 'agendados'} ({agendamentosFiltrados.length})
@@ -606,6 +604,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
 
