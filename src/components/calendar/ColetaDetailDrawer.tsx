@@ -25,6 +25,15 @@ const statusColor: Record<StatusAgendamento, string> = {
   concluido: 'bg-purple-100 text-purple-700',
 };
 
+const statusBorder: Record<StatusAgendamento, string> = {
+  agendado: 'border-l-blue-400',
+  confirmado: 'border-l-emerald-500',
+  compareceu: 'border-l-green-500',
+  ausente: 'border-l-red-500',
+  cancelado: 'border-l-slate-400',
+  concluido: 'border-l-purple-500',
+};
+
 export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailDrawerProps) {
   const user = useAuthStore((s) => s.user);
   const canEdit = canWrite(user?.perfil);
@@ -42,6 +51,8 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   const [importText, setImportText] = useState('');
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ agendados: number; criados: number; erros: string[] } | null>(null);
+
+  const [filtroStatus, setFiltroStatus] = useState<StatusAgendamento | ''>('');
 
   useEffect(() => {
     if (coleta) {
@@ -191,6 +202,25 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   const agendamentosAtivos = (coleta.agendamentos || []).filter((a) => a.status !== 'cancelado');
   const agendamentosCancelados = (coleta.agendamentos || []).filter((a) => a.status === 'cancelado');
 
+  const statusCounts: Record<StatusAgendamento, number> = {
+    agendado: 0,
+    confirmado: 0,
+    compareceu: 0,
+    ausente: 0,
+    cancelado: agendamentosCancelados.length,
+    concluido: 0,
+  };
+  agendamentosAtivos.forEach((a) => { statusCounts[a.status]++; });
+
+  const compareceram = statusCounts.compareceu + statusCounts.concluido;
+  const taxaComparecimento = agendamentosAtivos.length > 0
+    ? Math.round((compareceram / agendamentosAtivos.length) * 100)
+    : 0;
+
+  const agendamentosFiltrados = filtroStatus
+    ? agendamentosAtivos.filter((a) => a.status === filtroStatus)
+    : agendamentosAtivos;
+
   return (
     <>
       <div className="fixed inset-0 z-40 bg-slate-900/40" onClick={onClose} />
@@ -283,6 +313,43 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
           </div>
         </div>
 
+        {/* Efetividade / Resumo de status */}
+        {agendamentosAtivos.length > 0 && (
+          <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/60">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Efetividade</span>
+              <span className={`text-sm font-bold ${taxaComparecimento >= 80 ? 'text-green-600' : taxaComparecimento >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                {taxaComparecimento}% comparecimento
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 mb-2">
+              {([
+                { key: 'agendado', label: 'Agendados', color: 'text-blue-600 bg-blue-50 border-blue-200' },
+                { key: 'confirmado', label: 'Confirmados', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+                { key: 'compareceu', label: 'Compareceram', color: 'text-green-600 bg-green-50 border-green-200' },
+                { key: 'ausente', label: 'Ausentes', color: 'text-red-600 bg-red-50 border-red-200' },
+              ] as const).map((s) => (
+                <button
+                  key={s.key}
+                  onClick={() => setFiltroStatus(filtroStatus === s.key ? '' : s.key)}
+                  className={`p-1.5 rounded-lg border text-center transition ${s.color} ${filtroStatus === s.key ? 'ring-2 ring-offset-1 ring-slate-400' : 'hover:opacity-80'}`}
+                >
+                  <div className="text-base font-bold leading-none">{statusCounts[s.key]}</div>
+                  <div className="text-[10px] mt-0.5 font-medium opacity-80">{s.label}</div>
+                </button>
+              ))}
+            </div>
+            {filtroStatus && (
+              <button
+                className="text-[11px] text-blue-600 hover:underline"
+                onClick={() => setFiltroStatus('')}
+              >
+                ← Ver todos ({agendamentosAtivos.length})
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Agendar condutor */}
         {canEdit && (
           <div className="px-5 py-3 border-b border-slate-200">
@@ -316,21 +383,29 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         {/* Lista de agendamentos */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">
-            Condutores agendados ({agendamentosAtivos.length})
+            Condutores {filtroStatus ? STATUS_AGENDAMENTO_LABELS[filtroStatus].toLowerCase() + 's' : 'agendados'} ({agendamentosFiltrados.length})
           </h3>
-          {agendamentosAtivos.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-4">Nenhum condutor agendado</p>
+          {agendamentosFiltrados.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-4">
+              {filtroStatus ? 'Nenhum condutor com este status.' : 'Nenhum condutor agendado'}
+            </p>
           ) : (
             <div className="space-y-2">
-              {agendamentosAtivos.map((ag) => (
-                <div key={ag.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100">
+              {agendamentosFiltrados.map((ag) => (
+                <div
+                  key={ag.id}
+                  className={`flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100 border-l-4 ${statusBorder[ag.status]}`}
+                >
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
                       {ag.condutor?.nome_completo.charAt(0)}
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-slate-800 truncate">{ag.condutor?.nome_completo}</div>
-                      <div className="text-[11px] text-slate-500">{ag.condutor?.telefone || '—'}</div>
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <span>{ag.condutor?.telefone || '—'}</span>
+                        {canEdit && <span className={`badge ${statusColor[ag.status]} ml-1`}>{STATUS_AGENDAMENTO_LABELS[ag.status]}</span>}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
