@@ -9,7 +9,6 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
-  Legend,
 } from 'recharts';
 import { format, addDays, startOfWeek, endOfWeek } from 'date-fns';
 import { Target, Users, CheckCircle2, XCircle, TrendingUp, AlertTriangle, UserCheck, UserX, Download } from 'lucide-react';
@@ -21,6 +20,19 @@ import type { Coleta } from '@/types';
 import { DIAS_SEMANA_CURTO } from '@/types';
 
 type Periodo = 'hoje' | 'amanha' | 'semana' | 'personalizado';
+
+function ChartLegend({ items }: { items: Array<{ label: string; color: string }> }) {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-600 mb-3">
+      {items.map((item) => (
+        <span key={item.label} className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: item.color }} />
+          {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export function DashboardPage() {
   const [coletas, setColetas] = useState<Coleta[]>([]);
@@ -237,13 +249,13 @@ export function DashboardPage() {
           {/* Gráfico por cidade */}
           <div className="card p-5">
             <h3 className="font-semibold text-slate-800 mb-4">Por Cidade</h3>
+            <ChartLegend items={[{ label: 'Meta', color: '#94a3b8' }, { label: 'Agendados', color: '#3b82f6' }]} />
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={dadosPorCidade}>
+              <BarChart data={dadosPorCidade} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="cidade" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="meta" fill="#94a3b8" name="Meta" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="agendados" fill="#3b82f6" name="Agendados" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -253,13 +265,13 @@ export function DashboardPage() {
           {/* Gráfico por HUB */}
           <div className="card p-5">
             <h3 className="font-semibold text-slate-800 mb-4">Por HUB</h3>
+            <ChartLegend items={[{ label: 'Meta', color: '#94a3b8' }, { label: 'Agendados', color: '#10b981' }]} />
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={dadosPorHub}>
+              <BarChart data={dadosPorHub} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="hub" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="meta" fill="#94a3b8" name="Meta" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="agendados" fill="#10b981" name="Agendados" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -269,13 +281,13 @@ export function DashboardPage() {
           {/* Gráfico por dia da semana */}
           <div className="card p-5 lg:col-span-2">
             <h3 className="font-semibold text-slate-800 mb-4">Por Dia da Semana</h3>
+            <ChartLegend items={[{ label: 'Meta', color: '#94a3b8' }, { label: 'Agendados', color: '#3b82f6' }]} />
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={dadosPorDia}>
+              <LineChart data={dadosPorDia} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="dia" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Line type="monotone" dataKey="meta" stroke="#94a3b8" strokeWidth={2} name="Meta" dot={{ r: 4 }} />
                 <Line type="monotone" dataKey="agendados" stroke="#3b82f6" strokeWidth={2} name="Agendados" dot={{ r: 4 }} />
               </LineChart>
