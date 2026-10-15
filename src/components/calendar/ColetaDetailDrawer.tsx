@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check } from 'lucide-react';
+import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload } from 'lucide-react';
 import type { Coleta, Condutor, Agendamento, StatusAgendamento } from '@/types';
 import { calcColetaStats, dbAgendamentos, dbCondutores, dbColetas } from '@/lib/db';
 import { formatDateBR, formatTime, getOccupancyColor, colorClasses } from '@/utils';
 import { STATUS_AGENDAMENTO_LABELS, STATUS_COLETA_LABELS } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Modal } from '@/components/ui/Modal';
 import { useAuthStore } from '@/store/auth';
 import { canWrite } from '@/store/auth';
 
@@ -35,6 +36,12 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   const [editingMeta, setEditingMeta] = useState(false);
   const [novaMeta, setNovaMeta] = useState(0);
   const [deleteColeta, setDeleteColeta] = useState(false);
+
+  // Importar condutores
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ agendados: number; criados: number; erros: string[] } | null>(null);
 
   useEffect(() => {
     if (coleta) {
@@ -97,6 +104,88 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     setDeleteColeta(false);
     onClose();
     onUpdated();
+  };
+
+  const parseImportText = (text: string): { nome: string; cpf: string }[] => {
+    const linhas = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    const resultados: { nome: string; cpf: string }[] = [];
+    for (const linha of linhas) {
+      if (/^(nome|name|cpf)/i.test(linha)) continue;
+      let partes = linha.split(/\t|,|;/).map((p) => p.trim()).filter(Boolean);
+      if (partes.length === 1) {
+        const match = linha.match(/^(.+?)\s+(\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{11})$/);
+        if (match) partes = [match[1].trim(), match[2].trim()];
+      }
+      if (partes.length >= 2) {
+        const cpf = partes[partes.length - 1].replace(/\D/g, '');
+        const nome = partes.slice(0, -1).join(' ').trim();
+        if (nome && cpf.length >= 11) resultados.push({ nome, cpf });
+      }
+    }
+    return resultados;
+  };
+
+  const handleImport = async () => {
+    if (!importText.trim() || !coleta) return;
+    setImporting(true);
+    setImportResult(null);
+
+    const parsed = parseImportText(importText);
+    if (parsed.length === 0) {
+      setImportResult({ agendados: 0, criados: 0, erros: ['Nenhum registro válido encontrado. Use: Nome, CPF por linha.'] });
+      setImporting(false);
+      return;
+    }
+
+    // Busca todos os condutores para matching por CPF
+    const { data: todosCondutores } = await dbCondutores.list();
+    const condutoresList = (todosCondutores as Condutor[]) || [];
+    const cpfMap = new Map<string, Condutor>();
+    for (const cd of condutoresList) {
+      if (cd.cpf) cpfMap.set(cd.cpf.replace(/\D/g, ''), cd);
+    }
+
+    let criados = 0;
+    let agendados = 0;
+    const erros: string[] = [];
+
+    for (const item of parsed) {
+      let condutor = cpfMap.get(item.cpf);
+      // Cria o condutor se não existir
+      if (!condutor) {
+        const { data: novo } = await dbCondutores.bulkCreate([{
+          nome_completo: item.nome,
+          cpf: item.cpf,
+          cidade_id: coleta.hub?.cidade_id || null,
+          hub_id: coleta.hub_id,
+          status: 'ativo',
+        }]);
+        if (novo && novo[0]) {
+          condutor = novo[0] as Condutor;
+          criados++;
+        }
+      }
+      if (condutor) {
+        const { error } = await dbAgendamentos.create({
+          coleta_id: coleta.id,
+          condutor_id: condutor.id,
+          status: 'agendado',
+          created_by: user?.id,
+        });
+        if (error) {
+          erros.push(`${item.nome}: ${error.message.includes('atingida') ? 'meta atingida' : error.message.includes('conflitante') ? 'conflito de horário' : error.message}`);
+        } else {
+          agendados++;
+        }
+      }
+    }
+
+    setImportResult({ agendados, criados, erros });
+    setImportText('');
+    setImporting(false);
+    onUpdated();
+    // Recarrega lista de condutores
+    dbCondutores.listAtivos().then(({ data }) => setCondutores((data as Condutor[]) || []));
   };
 
   const agendamentosAtivos = (coleta.agendamentos || []).filter((a) => a.status !== 'cancelado');
@@ -198,7 +287,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         {canEdit && (
           <div className="px-5 py-3 border-b border-slate-200">
             <label className="label">Agendar condutor</label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-2">
               <select
                 className="input"
                 value={selectedCondutor}
@@ -215,6 +304,12 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
                 <Plus size={16} />
               </button>
             </div>
+            <button
+              className="btn-secondary w-full"
+              onClick={() => { setImportOpen(true); setImportResult(null); }}
+            >
+              <Upload size={16} /> Importar e agendar em lote
+            </button>
           </div>
         )}
 
@@ -296,6 +391,46 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         message={`Deseja excluir a coleta ${coleta?.hub?.sigla} de ${coleta ? formatDateBR(coleta.data_coleta) : ''} às ${coleta ? formatTime(coleta.horario) : ''}? Todos os agendamentos desta coleta também serão removidos.`}
         confirmLabel="Excluir coleta"
       />
+
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Importar e agendar condutores" size="md">
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600">
+            Cole uma lista de <strong>nome e CPF</strong>, um por linha. Os condutores já cadastrados serão agendados; os novos serão criados automaticamente.
+          </p>
+          <textarea
+            className="input h-48 font-mono text-sm"
+            placeholder={'João Silva, 123.456.789-00\nMaria Santos 987.654.321-00\nCarlos Souza; 111.222.333-44'}
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+          />
+
+          {importResult && (
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-sm space-y-1">
+              {importResult.agendados > 0 && <div className="text-green-700">✓ {importResult.agendados} condutor(es) agendado(s)</div>}
+              {importResult.criados > 0 && <div className="text-blue-700">+ {importResult.criados} condutor(es) criado(s)</div>}
+              {importResult.erros.length > 0 && (
+                <div className="text-red-600">
+                  <div className="font-semibold mb-1">⚠ {importResult.erros.length} erro(s):</div>
+                  <ul className="list-disc list-inside text-xs">
+                    {importResult.erros.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-2">
+            <button
+              className="btn-primary flex-1"
+              onClick={handleImport}
+              disabled={!importText.trim() || importing}
+            >
+              {importing ? 'Processando...' : 'Importar e agendar'}
+            </button>
+            <button className="btn-secondary" onClick={() => setImportOpen(false)}>Fechar</button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }
