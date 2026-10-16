@@ -171,26 +171,25 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
 
     for (let i = 0; i < maxRows; i++) {
       const nome = (nomes[i] || '').trim();
-      const cpf = (cpfs[i] || '').replace(/\D/g, '');
+      const cpfBruto = (cpfs[i] || '').trim();
+      const cpfNormalizado = cpfBruto.replace(/\D/g, '');
       const telefoneBruto = (telefones[i] || '').trim();
-      const telefone = telefoneBruto.replace(/\D/g, '');
+      const telefoneNormalizado = telefoneBruto.replace(/\D/g, '');
       const integracao = (integracoes[i] || '').trim();
       const linha = i + 1;
 
-      if (!nome && !cpf && !telefoneBruto && !integracao) continue;
+      if (!nome && !cpfNormalizado && !telefoneBruto && !integracao) continue;
       total++;
       if (!nome) {
         erros.push(`Linha ${linha}: nome não informado.`);
         continue;
       }
-      if (cpf && cpf.length !== 11) {
-        erros.push(`Linha ${linha}: CPF inválido.`);
-        continue;
-      }
-      if (telefone && telefone.length !== 10 && telefone.length !== 11) {
-        erros.push(`Linha ${linha}: telefone inválido.`);
-        continue;
-      }
+
+      const cpf = cpfNormalizado.length === 11 ? cpfNormalizado : '';
+      const telefone =
+        telefoneNormalizado.length === 10 || telefoneNormalizado.length === 11
+          ? telefoneNormalizado
+          : '';
 
       resultados.push({
         nome,
@@ -717,7 +716,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
           </p>
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
             CPF, telefone e integração podem ficar em branco. Em <strong>Integração</strong>, deixe em branco quando não for integração.
-            Escreva <strong>integração</strong> quando for.
+            Escreva <strong>integração</strong> quando for. Se CPF ou telefone vierem incompletos, o nome ainda será importado e o dado inválido será ignorado.
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
