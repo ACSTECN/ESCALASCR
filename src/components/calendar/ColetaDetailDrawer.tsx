@@ -48,7 +48,12 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
 
   // Importar condutores
   const [importOpen, setImportOpen] = useState(false);
-  const [importText, setImportText] = useState('');
+  const [importColumns, setImportColumns] = useState({
+    nomes: '',
+    cpfs: '',
+    telefones: '',
+    integracoes: '',
+  });
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ agendados: number; criados: number; erros: string[] } | null>(null);
 
@@ -143,64 +148,68 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     onUpdated();
   };
 
-  const parseImportText = (text: string): { nome: string; cpf: string; telefone: string }[] => {
-    const linhas = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    const resultados: { nome: string; cpf: string; telefone: string }[] = [];
-    const soDigitos = (s: string) => s.replace(/\D/g, '');
+  const limparImportacao = () => {
+    setImportColumns({ nomes: '', cpfs: '', telefones: '', integracoes: '' });
+  };
 
-    for (const linha of linhas) {
-      if (/^(nome|name|cpf)/i.test(linha)) continue;
-      let partes = linha.split(/\t|,|;/).map((p) => p.trim()).filter(Boolean);
+  const parseImportColumns = (cols: typeof importColumns) => {
+    const splitRows = (text: string) => text.replace(/\r/g, '').split('\n');
+    const toBoolIntegracao = (value: string) => /^(integracao|integração|sim|s|x|1|true)$/i.test(value.trim());
+    const nomes = splitRows(cols.nomes);
+    const cpfs = splitRows(cols.cpfs);
+    const telefones = splitRows(cols.telefones);
+    const integracoes = splitRows(cols.integracoes);
+    const maxRows = Math.max(nomes.length, cpfs.length, telefones.length, integracoes.length);
+    const resultados: { nome: string; cpf: string; telefone: string; fezIntegracao: boolean }[] = [];
+    const erros: string[] = [];
 
-      if (partes.length === 1) {
-        const matchTelefone = linha.match(
-          /^(.+?)\s+(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\s+((?:\d{2}\s?)?\d{4,5}-?\d{4})$/
-        );
-        if (matchTelefone) {
-          partes = [matchTelefone[1].trim(), matchTelefone[2].trim(), matchTelefone[3].trim()];
-        } else {
-          const match = linha.match(/^(.+?)\s+(\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{11})$/);
-          if (match) partes = [match[1].trim(), match[2].trim()];
-        }
+    for (let i = 0; i < maxRows; i++) {
+      const nome = (nomes[i] || '').trim();
+      const cpf = (cpfs[i] || '').replace(/\D/g, '');
+      const telefoneBruto = (telefones[i] || '').trim();
+      const telefone = telefoneBruto.replace(/\D/g, '');
+      const integracao = (integracoes[i] || '').trim();
+      const linha = i + 1;
+
+      if (!nome && !cpf && !telefoneBruto && !integracao) continue;
+      if (!nome) {
+        erros.push(`Linha ${linha}: nome não informado.`);
+        continue;
+      }
+      if (cpf.length !== 11) {
+        erros.push(`Linha ${linha}: CPF inválido.`);
+        continue;
+      }
+      if (telefone && telefone.length !== 10 && telefone.length !== 11) {
+        erros.push(`Linha ${linha}: telefone inválido.`);
+        continue;
       }
 
-      let nome = '';
-      let cpf = '';
-      let telefone = '';
-
-      // 3+ colunas: nome, CPF, telefone
-      if (partes.length >= 3) {
-        const penultimo = soDigitos(partes[partes.length - 2]);
-        const ultimo = soDigitos(partes[partes.length - 1]);
-        if (penultimo.length === 11 && (ultimo.length === 10 || ultimo.length === 11)) {
-          cpf = penultimo;
-          telefone = ultimo;
-          nome = partes.slice(0, -2).join(' ').trim();
-        }
-      }
-
-      // 2 colunas: nome, CPF
-      if (!cpf && partes.length >= 2) {
-        const ultimo = soDigitos(partes[partes.length - 1]);
-        if (ultimo.length === 11) {
-          cpf = ultimo;
-          nome = partes.slice(0, -1).join(' ').trim();
-        }
-      }
-
-      if (nome && cpf.length === 11) resultados.push({ nome, cpf, telefone });
+      resultados.push({
+        nome,
+        cpf,
+        telefone,
+        fezIntegracao: toBoolIntegracao(integracao),
+      });
     }
-    return resultados;
+
+    return { resultados, erros };
   };
 
   const handleImport = async () => {
-    if (!importText.trim() || !coleta) return;
+    if (!importColumns.nomes.trim() || !importColumns.cpfs.trim() || !coleta) return;
     setImporting(true);
     setImportResult(null);
 
-    const parsed = parseImportText(importText);
+    const { resultados: parsed, erros: errosValidacao } = parseImportColumns(importColumns);
     if (parsed.length === 0) {
-      setImportResult({ agendados: 0, criados: 0, erros: ['Nenhum registro válido encontrado. Use: Nome, CPF por linha.'] });
+      setImportResult({
+        agendados: 0,
+        criados: 0,
+        erros: errosValidacao.length > 0
+          ? errosValidacao
+          : ['Nenhum registro válido encontrado. Preencha ao menos as colunas Nome e CPF.'],
+      });
       setImporting(false);
       return;
     }
@@ -226,6 +235,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
           nome_completo: item.nome,
           cpf: item.cpf,
           telefone: item.telefone || null,
+          fez_integracao: item.fezIntegracao,
           cidade_id: coleta.hub?.cidade_id || null,
           hub_id: coleta.hub_id,
           status: 'ativo',
@@ -234,10 +244,16 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
           condutor = novo[0] as Condutor;
           criados++;
         }
-      } else if (item.telefone && !condutor.telefone) {
-        // Complementa o telefone caso o condutor existente ainda não tenha
-        await dbCondutores.update(condutor.id, { telefone: item.telefone });
-        condutor = { ...condutor, telefone: item.telefone };
+      } else {
+        const updateData: Partial<Condutor> = {};
+        if (item.telefone && !condutor.telefone) updateData.telefone = item.telefone;
+        if ((condutor.fez_integracao ?? false) !== item.fezIntegracao) {
+          updateData.fez_integracao = item.fezIntegracao;
+        }
+        if (Object.keys(updateData).length > 0) {
+          await dbCondutores.update(condutor.id, updateData);
+          condutor = { ...condutor, ...updateData };
+        }
       }
       if (condutor) {
         const agendamentoExistente = agendamentoMap.get(condutor.id);
@@ -271,8 +287,8 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
       }
     }
 
-    setImportResult({ agendados, criados, erros });
-    setImportText('');
+    setImportResult({ agendados, criados, erros: [...errosValidacao, ...erros] });
+    limparImportacao();
     setImporting(false);
     onUpdated();
     // Recarrega lista de condutores
@@ -499,7 +515,11 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
                 </div>
                 <button
                   className="btn-secondary w-full"
-                  onClick={() => { setImportOpen(true); setImportResult(null); }}
+                  onClick={() => {
+                    setImportOpen(true);
+                    setImportResult(null);
+                    limparImportacao();
+                  }}
                 >
                   <Upload size={16} /> Importar e agendar em lote
                 </button>
@@ -661,17 +681,61 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         confirmLabel="Remover selecionados"
       />
 
-      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Importar e agendar condutores" size="md">
+      <Modal
+        open={importOpen}
+        onClose={() => {
+          setImportOpen(false);
+          setImportResult(null);
+        }}
+        title="Importar e agendar condutores"
+        size="xl"
+      >
         <div className="space-y-3">
           <p className="text-sm text-slate-600">
-            Cole uma lista de <strong>nome, CPF e telefone</strong> (telefone opcional), um por linha. Os condutores já cadastrados serão agendados; os novos serão criados automaticamente.
+            Cole cada coluna separadamente, como em um Excel simples. As linhas precisam ficar na mesma ordem em todas as colunas.
           </p>
-          <textarea
-            className="input h-48 font-mono text-sm"
-            placeholder={'João Silva, 123.456.789-00, (11) 91234-5678\nMaria Santos 987.654.321-00 21998765432\nCarlos Souza; 111.222.333-44'}
-            value={importText}
-            onChange={(e) => setImportText(e.target.value)}
-          />
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+            Em <strong>Integração</strong>, deixe em branco quando não for integração. Escreva <strong>integração</strong> quando for.
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+            <div className="lg:col-span-1">
+              <label className="label">Colar nomes *</label>
+              <textarea
+                className="input h-56 font-mono text-sm"
+                placeholder={'João Silva\nMaria Santos\nCarlos Souza'}
+                value={importColumns.nomes}
+                onChange={(e) => setImportColumns((prev) => ({ ...prev, nomes: e.target.value }))}
+              />
+            </div>
+            <div className="lg:col-span-1">
+              <label className="label">Colar CPFs *</label>
+              <textarea
+                className="input h-56 font-mono text-sm"
+                placeholder={'123.456.789-00\n987.654.321-00\n111.222.333-44'}
+                value={importColumns.cpfs}
+                onChange={(e) => setImportColumns((prev) => ({ ...prev, cpfs: e.target.value }))}
+              />
+            </div>
+            <div className="lg:col-span-1">
+              <label className="label">Colar telefones</label>
+              <textarea
+                className="input h-56 font-mono text-sm"
+                placeholder={'(11) 91234-5678\n21998765432\n'}
+                value={importColumns.telefones}
+                onChange={(e) => setImportColumns((prev) => ({ ...prev, telefones: e.target.value }))}
+              />
+            </div>
+            <div className="lg:col-span-1">
+              <label className="label">Colar integração</label>
+              <textarea
+                className="input h-56 font-mono text-sm"
+                placeholder={'integração\n\nintegração'}
+                value={importColumns.integracoes}
+                onChange={(e) => setImportColumns((prev) => ({ ...prev, integracoes: e.target.value }))}
+              />
+            </div>
+          </div>
 
           {importResult && (
             <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-sm space-y-1">
@@ -692,11 +756,19 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
             <button
               className="btn-primary flex-1"
               onClick={handleImport}
-              disabled={!importText.trim() || importing}
+              disabled={!importColumns.nomes.trim() || !importColumns.cpfs.trim() || importing}
             >
               {importing ? 'Processando...' : 'Importar e agendar'}
             </button>
-            <button className="btn-secondary" onClick={() => setImportOpen(false)}>Fechar</button>
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                setImportOpen(false);
+                setImportResult(null);
+              }}
+            >
+              Fechar
+            </button>
           </div>
         </div>
       </Modal>

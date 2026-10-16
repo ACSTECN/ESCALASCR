@@ -39,6 +39,7 @@ export interface Condutor {
   nome_completo: string;
   cpf: string | null;
   telefone: string | null;
+  fez_integracao: boolean | null;
   cidade_id: string | null;
   hub_id: string | null;
   status: string;
