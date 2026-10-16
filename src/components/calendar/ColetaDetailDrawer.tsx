@@ -452,7 +452,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     );
 
     const selecionados = agendamentosAtuais.filter((a) => selectedIds.has(a.id));
-    let movidos = 0;
+    let adicionados = 0;
     const ignorados: string[] = [];
 
     for (const ag of selecionados) {
@@ -488,10 +488,9 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         continue;
       }
 
-      await dbAgendamentos.remove(ag.id);
       destinoMap.set(ag.condutor_id, (existenteDestino || {}) as Agendamento);
       if (nome) nomesDestino.add(nome);
-      movidos++;
+      adicionados++;
     }
 
     setTransferring(false);
@@ -499,13 +498,17 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     onUpdated();
 
     if (ignorados.length > 0) {
-      setTransferMsg(`${movidos} transferido(s). Não transferidos: ${ignorados.join(' | ')}`);
+      setTransferMsg(
+        `${adicionados} adicionado(s) no novo dia. A escala atual foi mantida. Não adicionados: ${ignorados.join(' | ')}`
+      );
     } else {
-      setTransferMsg(`${movidos} condutor(es) transferido(s) com sucesso.`);
+      setTransferMsg(
+        `${adicionados} condutor(es) também agendado(s) no novo dia. A escala atual foi mantida.`
+      );
       setTimeout(() => {
         setTransferOpen(false);
         setTransferMsg(null);
-      }, 1200);
+      }, 1500);
     }
   };
 
@@ -745,9 +748,9 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
                   setTransferTargetId('');
                 }}
                 className="btn-secondary !py-1 !px-2 text-xs whitespace-nowrap inline-flex items-center gap-1"
-                title="Transferir selecionados para outro dia"
+                title="Adicionar selecionados em outro dia (mantém esta escala)"
               >
-                <ArrowRightLeft size={13} /> Transferir dia
+                <ArrowRightLeft size={13} /> Outro dia
               </button>
               <button
                 onClick={() => setConfirmBulkRemove(true)}
@@ -859,14 +862,17 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
           setTransferOpen(false);
           setTransferMsg(null);
         }}
-        title="Transferir para outro dia"
+        title="Adicionar em outro dia"
         size="md"
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
-            Mover <strong>{selectedIds.size}</strong> condutor(es) selecionado(s) desta escala para outra
-            escala do mesmo HUB ({coleta?.hub?.sigla}).
+            Adicionar <strong>{selectedIds.size}</strong> condutor(es) selecionado(s) em outra escala do
+            mesmo HUB ({coleta?.hub?.sigla}).
           </p>
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
+            Os condutores <strong>continuam agendados nesta escala</strong> e também serão agendados no dia escolhido.
+          </div>
 
           <div>
             <label className="label">Dia de destino</label>
@@ -935,7 +941,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
               disabled={!transferTargetId || transferring || selectedIds.size === 0}
             >
               <ArrowRightLeft size={16} />
-              {transferring ? 'Transferindo...' : 'Transferir selecionados'}
+              {transferring ? 'Adicionando...' : 'Adicionar no novo dia'}
             </button>
             <button
               className="btn-secondary"
