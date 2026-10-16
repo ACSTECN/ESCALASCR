@@ -55,7 +55,12 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     integracoes: '',
   });
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ agendados: number; criados: number; erros: string[] } | null>(null);
+  const [importResult, setImportResult] = useState<{
+    total: number;
+    agendados: number;
+    criados: number;
+    erros: string[];
+  } | null>(null);
 
   const [filtroStatus, setFiltroStatus] = useState<StatusAgendamento | ''>('');
 
@@ -162,6 +167,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     const maxRows = Math.max(nomes.length, cpfs.length, telefones.length, integracoes.length);
     const resultados: { nome: string; cpf: string; telefone: string; fezIntegracao: boolean }[] = [];
     const erros: string[] = [];
+    let total = 0;
 
     for (let i = 0; i < maxRows; i++) {
       const nome = (nomes[i] || '').trim();
@@ -172,11 +178,12 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
       const linha = i + 1;
 
       if (!nome && !cpf && !telefoneBruto && !integracao) continue;
+      total++;
       if (!nome) {
         erros.push(`Linha ${linha}: nome não informado.`);
         continue;
       }
-      if (cpf.length !== 11) {
+      if (cpf && cpf.length !== 11) {
         erros.push(`Linha ${linha}: CPF inválido.`);
         continue;
       }
@@ -193,22 +200,23 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
       });
     }
 
-    return { resultados, erros };
+    return { total, resultados, erros };
   };
 
   const handleImport = async () => {
-    if (!importColumns.nomes.trim() || !importColumns.cpfs.trim() || !coleta) return;
+    if (!importColumns.nomes.trim() || !coleta) return;
     setImporting(true);
     setImportResult(null);
 
-    const { resultados: parsed, erros: errosValidacao } = parseImportColumns(importColumns);
+    const { total, resultados: parsed, erros: errosValidacao } = parseImportColumns(importColumns);
     if (parsed.length === 0) {
       setImportResult({
+        total,
         agendados: 0,
         criados: 0,
         erros: errosValidacao.length > 0
           ? errosValidacao
-          : ['Nenhum registro válido encontrado. Preencha ao menos as colunas Nome e CPF.'],
+          : ['Nenhum registro válido encontrado. Preencha ao menos a coluna Nome.'],
       });
       setImporting(false);
       return;
@@ -228,21 +236,29 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     const agendamentoMap = new Map(agendamentosAtuais.map((a) => [a.condutor_id, a]));
 
     for (const item of parsed) {
-      let condutor = cpfMap.get(item.cpf);
+      let condutor = item.cpf ? cpfMap.get(item.cpf) : undefined;
       // Cria o condutor se não existir
       if (!condutor) {
-        const { data: novo } = await dbCondutores.bulkCreate([{
+        const { data: novo, error: erroCriacao } = await dbCondutores.create({
           nome_completo: item.nome,
-          cpf: item.cpf,
+          cpf: item.cpf || null,
           telefone: item.telefone || null,
           fez_integracao: item.fezIntegracao,
           cidade_id: coleta.hub?.cidade_id || null,
           hub_id: coleta.hub_id,
           status: 'ativo',
-        }]);
-        if (novo && novo[0]) {
-          condutor = novo[0] as Condutor;
+        });
+        if (erroCriacao) {
+          erros.push(`${item.nome}: não foi possível criar o condutor (${erroCriacao.message})`);
+          continue;
+        }
+        if (novo) {
+          condutor = novo as Condutor;
           criados++;
+          if (item.cpf) cpfMap.set(item.cpf, condutor);
+        } else {
+          erros.push(`${item.nome}: não foi possível criar o condutor.`);
+          continue;
         }
       } else {
         const updateData: Partial<Condutor> = {};
@@ -251,7 +267,11 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
           updateData.fez_integracao = item.fezIntegracao;
         }
         if (Object.keys(updateData).length > 0) {
-          await dbCondutores.update(condutor.id, updateData);
+          const { error: erroAtualizacao } = await dbCondutores.update(condutor.id, updateData);
+          if (erroAtualizacao) {
+            erros.push(`${item.nome}: não foi possível atualizar o cadastro (${erroAtualizacao.message})`);
+            continue;
+          }
           condutor = { ...condutor, ...updateData };
         }
       }
@@ -287,7 +307,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
       }
     }
 
-    setImportResult({ agendados, criados, erros: [...errosValidacao, ...erros] });
+    setImportResult({ total, agendados, criados, erros: [...errosValidacao, ...erros] });
     limparImportacao();
     setImporting(false);
     onUpdated();
@@ -693,9 +713,11 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         <div className="space-y-3">
           <p className="text-sm text-slate-600">
             Cole cada coluna separadamente, como em um Excel simples. As linhas precisam ficar na mesma ordem em todas as colunas.
+            Somente <strong>Nome</strong> é obrigatório.
           </p>
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-            Em <strong>Integração</strong>, deixe em branco quando não for integração. Escreva <strong>integração</strong> quando for.
+            CPF, telefone e integração podem ficar em branco. Em <strong>Integração</strong>, deixe em branco quando não for integração.
+            Escreva <strong>integração</strong> quando for.
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
@@ -709,7 +731,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
               />
             </div>
             <div className="lg:col-span-1">
-              <label className="label">Colar CPFs *</label>
+              <label className="label">Colar CPFs</label>
               <textarea
                 className="input h-56 font-mono text-sm"
                 placeholder={'123.456.789-00\n987.654.321-00\n111.222.333-44'}
@@ -741,6 +763,9 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
             <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-sm space-y-1">
               {importResult.agendados > 0 && <div className="text-green-700">✓ {importResult.agendados} condutor(es) agendado(s)</div>}
               {importResult.criados > 0 && <div className="text-blue-700">+ {importResult.criados} condutor(es) criado(s)</div>}
+              <div className="text-slate-700">
+                {importResult.total} linha(s) lida(s) · {importResult.agendados} agendada(s) · {importResult.total - importResult.agendados} não agendada(s)
+              </div>
               {importResult.erros.length > 0 && (
                 <div className="text-red-600">
                   <div className="font-semibold mb-1">⚠ {importResult.erros.length} erro(s):</div>
@@ -756,7 +781,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
             <button
               className="btn-primary flex-1"
               onClick={handleImport}
-              disabled={!importColumns.nomes.trim() || !importColumns.cpfs.trim() || importing}
+              disabled={!importColumns.nomes.trim() || importing}
             >
               {importing ? 'Processando...' : 'Importar e agendar'}
             </button>
