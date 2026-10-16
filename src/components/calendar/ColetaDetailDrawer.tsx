@@ -240,12 +240,18 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
       return;
     }
 
-    // Busca todos os condutores para matching por CPF
+    // Reaproveita cadastro apenas quando CPF e nome baterem juntos.
+    // Se o mesmo CPF vier com nome diferente, tratamos como outro registro
+    // para não derrubar a quantidade importada.
     const { data: todosCondutores } = await dbCondutores.list();
     const condutoresList = (todosCondutores as Condutor[]) || [];
-    const cpfMap = new Map<string, Condutor>();
+    const cpfMap = new Map<string, Condutor[]>();
     for (const cd of condutoresList) {
-      if (cd.cpf) cpfMap.set(cd.cpf.replace(/\D/g, ''), cd);
+      if (!cd.cpf) continue;
+      const cpf = cd.cpf.replace(/\D/g, '');
+      const atuais = cpfMap.get(cpf) || [];
+      atuais.push(cd);
+      cpfMap.set(cpf, atuais);
     }
 
     let criados = 0;
@@ -263,7 +269,11 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         continue;
       }
 
-      let condutor = item.cpf ? cpfMap.get(item.cpf) : undefined;
+      let condutor = item.cpf
+        ? (cpfMap.get(item.cpf) || []).find(
+            (cd) => normalizarNome(cd.nome_completo || '') === nomeNormalizado
+          )
+        : undefined;
       // Cria o condutor se não existir
       if (!condutor) {
         const { data: novo, error: erroCriacao } = await dbCondutores.create({
@@ -282,7 +292,11 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         if (novo) {
           condutor = novo as Condutor;
           criados++;
-          if (item.cpf) cpfMap.set(item.cpf, condutor);
+          if (item.cpf) {
+            const atuais = cpfMap.get(item.cpf) || [];
+            atuais.push(condutor);
+            cpfMap.set(item.cpf, atuais);
+          }
         } else {
           erros.push(`${item.nome}: não foi possível criar o condutor.`);
           continue;
