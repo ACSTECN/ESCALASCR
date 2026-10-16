@@ -104,6 +104,7 @@ export interface InteresseEntregador {
   nome: string;
   cpf: string;
   telefone: string | null;
+  fez_integracao: boolean | null;
   hub_id: string;
   data_interesse: string;
   status: StatusInteresse;

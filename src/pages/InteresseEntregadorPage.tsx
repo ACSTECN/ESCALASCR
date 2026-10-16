@@ -31,9 +31,11 @@ export function InteresseEntregadorPage() {
   const [nome, setNome] = useState('');
   const [cpf, setCpf] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [fezIntegracao, setFezIntegracao] = useState<boolean | null>(null);
   const [cidadeId, setCidadeId] = useState('');
   const [hubId, setHubId] = useState('');
   const [data, setData] = useState('');
+  const [confirmouDisponibilidade, setConfirmouDisponibilidade] = useState(false);
 
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
@@ -54,15 +56,20 @@ export function InteresseEntregadorPage() {
     setErro('');
     if (nome.trim().length < 3) return setErro('Informe o nome completo.');
     if (cpf.replace(/\D/g, '').length !== 11) return setErro('Informe um CPF válido (11 dígitos).');
+    if (fezIntegracao === null) return setErro('Informe se você já fez a primeira integração.');
     if (!hubId) return setErro('Selecione o HUB onde quer fazer coleta.');
     if (!data) return setErro('Selecione o dia de interesse.');
     if (data < hoje()) return setErro('A data não pode ser anterior a hoje.');
+    if (!confirmouDisponibilidade) {
+      return setErro('Confirme que só está demonstrando interesse se realmente puder comparecer.');
+    }
 
     setSalvando(true);
     const { error } = await dbInteresses.create({
       nome: nome.trim(),
       cpf: cpf.replace(/\D/g, ''),
       telefone: telefone.trim() || null,
+      fez_integracao: fezIntegracao,
       hub_id: hubId,
       data_interesse: data,
       status: 'pendente',
@@ -87,9 +94,11 @@ export function InteresseEntregadorPage() {
     setNome('');
     setCpf('');
     setTelefone('');
+    setFezIntegracao(null);
     setCidadeId('');
     setHubId('');
     setData('');
+    setConfirmouDisponibilidade(false);
     setErro('');
   };
 
@@ -132,7 +141,8 @@ export function InteresseEntregadorPage() {
                 </div>
               </div>
               <p className="text-xs text-slate-500 mt-4">
-                Sua solicitação foi enviada para nossa equipe. Compareça no HUB no dia informado.
+                Isso não garante seu agendamento na data interessada. Entraremos em contato para
+                fazer uma breve confirmação antes de agendar.
               </p>
               <button className="btn-primary w-full mt-6" onClick={novoInteresse}>
                 Registrar outro interesse
@@ -178,6 +188,34 @@ export function InteresseEntregadorPage() {
                       placeholder="(00) 00000-0000"
                       inputMode="numeric"
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label">Já fez a primeira integração? *</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFezIntegracao(true)}
+                      className={`rounded-xl border px-4 py-3 text-sm font-medium transition-colors ${
+                        fezIntegracao === true
+                          ? 'border-brand-500 bg-brand-50 text-brand-700'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      Sim, já fiz
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFezIntegracao(false)}
+                      className={`rounded-xl border px-4 py-3 text-sm font-medium transition-colors ${
+                        fezIntegracao === false
+                          ? 'border-brand-500 bg-brand-50 text-brand-700'
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      Não fiz ainda
+                    </button>
                   </div>
                 </div>
 
@@ -231,6 +269,27 @@ export function InteresseEntregadorPage() {
                   </div>
                 )}
 
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 space-y-2">
+                  <p className="font-medium">
+                    Isso não garante seu agendamento na data interessada.
+                  </p>
+                  <p>
+                    Entraremos em contato para fazer uma breve confirmação antes de agendar.
+                  </p>
+                </div>
+
+                <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                    checked={confirmouDisponibilidade}
+                    onChange={(e) => setConfirmouDisponibilidade(e.target.checked)}
+                  />
+                  <span>
+                    Confirmo que só estou dando interesse se realmente eu puder comparecer nessa data.
+                  </span>
+                </label>
+
                 <button className="btn-primary w-full" onClick={salvar} disabled={salvando}>
                   {salvando ? (
                     <><Loader2 size={16} className="animate-spin" /> Enviando...</>
@@ -238,10 +297,6 @@ export function InteresseEntregadorPage() {
                     'Confirmar interesse'
                   )}
                 </button>
-
-                <p className="text-xs text-slate-400 text-center">
-                  Confirme apenas os dias em que você realmente tem disponibilidade.
-                </p>
               </div>
             </>
           )}
