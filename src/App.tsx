@@ -10,6 +10,8 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { CidadesHubsPage } from '@/pages/CidadesHubsPage';
 import { HistoricoPage } from '@/pages/HistoricoPage';
 import { ConfiguracoesPage } from '@/pages/ConfiguracoesPage';
+import { ListaEsperaPage } from '@/pages/ListaEsperaPage';
+import { InteresseEntregadorPage } from '@/pages/InteresseEntregadorPage';
 import { useInitAuth } from '@/hooks/useAuth';
 
 function AppRoutes() {
@@ -18,6 +20,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/entregador" element={<InteresseEntregadorPage />} />
       <Route
         path="/"
         element={
@@ -44,6 +47,14 @@ function AppRoutes() {
           }
         />
         <Route path="escala-amanha" element={<EscalaAmanhaPage />} />
+        <Route
+          path="lista-espera"
+          element={
+            <ProtectedRoute roles={['admin', 'supervisor', 'operador', 'visualizador']}>
+              <ListaEsperaPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="dashboard"
           element={

@@ -97,6 +97,23 @@ export interface Agendamento {
   coleta?: Coleta;
 }
 
+export type StatusInteresse = 'pendente' | 'aprovado' | 'recusado';
+
+export interface InteresseEntregador {
+  id: string;
+  nome: string;
+  cpf: string;
+  telefone: string | null;
+  hub_id: string;
+  data_interesse: string;
+  status: StatusInteresse;
+  observacao: string | null;
+  created_at: string;
+  updated_at: string;
+  // joined
+  hub?: Hub;
+}
+
 export interface Usuario {
   id: string;
   nome: string;
@@ -162,6 +179,12 @@ export const STATUS_COLETA_LABELS: Record<StatusColeta, string> = {
   em_andamento: 'Em andamento',
   finalizada: 'Finalizada',
   cancelada: 'Cancelada',
+};
+
+export const STATUS_INTERESSE_LABELS: Record<StatusInteresse, string> = {
+  pendente: 'Pendente',
+  aprovado: 'Aprovado',
+  recusado: 'Recusado',
 };
 
 export const PERFIL_LABELS: Record<PerfilUsuario, string> = {

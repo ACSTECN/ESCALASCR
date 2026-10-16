@@ -8,7 +8,9 @@ import type {
   MetaColeta,
   Agendamento,
   Usuario,
+  InteresseEntregador,
   StatusAgendamento,
+  StatusInteresse,
 } from '@/types';
 
 // ============================================================
@@ -77,6 +79,14 @@ export const dbCondutores = {
   remove: (id: string) => supabase.from('condutores').delete().eq('id', id),
   bulkCreate: (data: Partial<Condutor>[]) =>
     supabase.from('condutores').insert(data).select(),
+  findByCpf: async (cpf: string) => {
+    const { data, error } = await supabase
+      .from('condutores')
+      .select('*')
+      .eq('cpf', cpf)
+      .limit(1);
+    return { data: data && data.length > 0 ? (data[0] as Condutor) : null, error };
+  },
 };
 
 // ============================================================
@@ -209,6 +219,32 @@ export const dbAgendamentos = {
     supabase.from('agendamentos').delete().in('id', ids),
 
   remove: (id: string) => supabase.from('agendamentos').delete().eq('id', id),
+};
+
+// ============================================================
+// INTERESSES DE ENTREGADOR (lista de espera)
+// ============================================================
+export const dbInteresses = {
+  list: () =>
+    supabase
+      .from('interesses_entregador')
+      .select('*, hub:hubs(*, cidade:cidades(*))')
+      .order('data_interesse', { ascending: true })
+      .order('created_at', { ascending: false }),
+
+  // Insert sem representação: o link público (anon) não tem permissão de SELECT
+  create: (data: Partial<InteresseEntregador>) =>
+    supabase.from('interesses_entregador').insert(data),
+
+  updateStatus: (id: string, status: StatusInteresse, observacao?: string | null) =>
+    supabase
+      .from('interesses_entregador')
+      .update(observacao === undefined ? { status } : { status, observacao })
+      .eq('id', id)
+      .select()
+      .single(),
+
+  remove: (id: string) => supabase.from('interesses_entregador').delete().eq('id', id),
 };
 
 // ============================================================
