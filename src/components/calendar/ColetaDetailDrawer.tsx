@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload, Download, Square, CheckSquare } from 'lucide-react';
+import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload, Download, Square, CheckSquare, ArrowRightLeft } from 'lucide-react';
 import type { Coleta, Condutor, Agendamento, StatusAgendamento } from '@/types';
 import { calcColetaStats, dbAgendamentos, dbCondutores, dbColetas } from '@/lib/db';
 import { formatDateBR, formatTime, getOccupancyColor, colorClasses, toCSV, downloadFile } from '@/utils';
@@ -75,6 +75,15 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<StatusAgendamento>('agendado');
   const [confirmBulkRemove, setConfirmBulkRemove] = useState(false);
+
+  // Transferência de escala (mover selecionados para outro dia)
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferDate, setTransferDate] = useState('');
+  const [transferColetas, setTransferColetas] = useState<Coleta[]>([]);
+  const [transferLoading, setTransferLoading] = useState(false);
+  const [transferTargetId, setTransferTargetId] = useState('');
+  const [transferring, setTransferring] = useState(false);
+  const [transferMsg, setTransferMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (coleta) {
@@ -412,6 +421,94 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     onUpdated();
   };
 
+  const carregarColetasDestino = async (date: string) => {
+    if (!coleta || !date) {
+      setTransferColetas([]);
+      setTransferTargetId('');
+      return;
+    }
+    setTransferLoading(true);
+    const { data } = await dbColetas.listByDate(date);
+    const lista = ((data as Coleta[]) || []).filter(
+      (c) => c.hub_id === coleta.hub_id && c.id !== coleta.id
+    );
+    setTransferColetas(lista);
+    setTransferTargetId(lista[0]?.id || '');
+    setTransferLoading(false);
+  };
+
+  const transferirSelecionados = async () => {
+    if (!coleta || !transferTargetId || selectedIds.size === 0) return;
+    setTransferring(true);
+    setTransferMsg(null);
+
+    const destino = transferColetas.find((c) => c.id === transferTargetId);
+    const destinoMap = new Map((destino?.agendamentos || []).map((a) => [a.condutor_id, a]));
+    const nomesDestino = new Set(
+      (destino?.agendamentos || [])
+        .filter((a) => a.status !== 'cancelado')
+        .map((a) => normalizarNome(a.condutor?.nome_completo || ''))
+        .filter(Boolean)
+    );
+
+    const selecionados = agendamentosAtuais.filter((a) => selectedIds.has(a.id));
+    let movidos = 0;
+    const ignorados: string[] = [];
+
+    for (const ag of selecionados) {
+      const nome = normalizarNome(ag.condutor?.nome_completo || '');
+      if (nome && nomesDestino.has(nome)) {
+        ignorados.push(`${ag.condutor?.nome_completo}: já agendado neste dia`);
+        continue;
+      }
+
+      const existenteDestino = destinoMap.get(ag.condutor_id);
+      let error: { message: string } | null = null;
+
+      if (existenteDestino) {
+        if (existenteDestino.status === 'cancelado') {
+          const result = await dbAgendamentos.updateStatus(existenteDestino.id, ag.status);
+          error = result.error;
+        } else {
+          ignorados.push(`${ag.condutor?.nome_completo}: já agendado neste dia`);
+          continue;
+        }
+      } else {
+        const result = await dbAgendamentos.create({
+          coleta_id: transferTargetId,
+          condutor_id: ag.condutor_id,
+          status: ag.status,
+          created_by: user?.id,
+        });
+        error = result.error;
+      }
+
+      if (error) {
+        ignorados.push(`${ag.condutor?.nome_completo}: ${error.message}`);
+        continue;
+      }
+
+      await dbAgendamentos.remove(ag.id);
+      destinoMap.set(ag.condutor_id, (existenteDestino || {}) as Agendamento);
+      if (nome) nomesDestino.add(nome);
+      movidos++;
+    }
+
+    setTransferring(false);
+    setSelectedIds(new Set());
+    onUpdated();
+
+    if (ignorados.length > 0) {
+      setTransferMsg(`${movidos} transferido(s). Não transferidos: ${ignorados.join(' | ')}`);
+    } else {
+      setTransferMsg(`${movidos} condutor(es) transferido(s) com sucesso.`);
+      setTimeout(() => {
+        setTransferOpen(false);
+        setTransferMsg(null);
+      }, 1200);
+    }
+  };
+
   const exportarAgendamentos = () => {
     if (!coleta) return;
     const linhas = agendamentosAtivos.map((a) => ({
@@ -640,6 +737,19 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
                 Aplicar
               </button>
               <button
+                onClick={() => {
+                  setTransferOpen(true);
+                  setTransferMsg(null);
+                  setTransferDate('');
+                  setTransferColetas([]);
+                  setTransferTargetId('');
+                }}
+                className="btn-secondary !py-1 !px-2 text-xs whitespace-nowrap inline-flex items-center gap-1"
+                title="Transferir selecionados para outro dia"
+              >
+                <ArrowRightLeft size={13} /> Transferir dia
+              </button>
+              <button
                 onClick={() => setConfirmBulkRemove(true)}
                 className="btn-danger !py-1 !px-2 text-xs whitespace-nowrap"
               >
@@ -742,6 +852,103 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         message={`Deseja remover ${selectedIds.size} agendamento(s) selecionado(s)? Essa ação libera as vagas desta coleta.`}
         confirmLabel="Remover selecionados"
       />
+
+      <Modal
+        open={transferOpen}
+        onClose={() => {
+          setTransferOpen(false);
+          setTransferMsg(null);
+        }}
+        title="Transferir para outro dia"
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Mover <strong>{selectedIds.size}</strong> condutor(es) selecionado(s) desta escala para outra
+            escala do mesmo HUB ({coleta?.hub?.sigla}).
+          </p>
+
+          <div>
+            <label className="label">Dia de destino</label>
+            <input
+              type="date"
+              className="input"
+              value={transferDate}
+              onChange={(e) => {
+                setTransferDate(e.target.value);
+                setTransferMsg(null);
+                carregarColetasDestino(e.target.value);
+              }}
+            />
+          </div>
+
+          {transferLoading && <p className="text-sm text-slate-400">Buscando escalas do dia...</p>}
+
+          {transferDate && !transferLoading && transferColetas.length === 0 && (
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-700">
+              Nenhuma escala encontrada para esse HUB no dia selecionado.
+            </div>
+          )}
+
+          {transferColetas.length > 0 && (
+            <div>
+              <label className="label">Escala / horário de destino</label>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {transferColetas.map((c) => {
+                  const stats = calcColetaStats(c);
+                  const selecionada = transferTargetId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setTransferTargetId(c.id)}
+                      className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm text-left transition ${
+                        selecionada
+                          ? 'border-brand-400 bg-brand-50 ring-1 ring-brand-300'
+                          : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 font-medium text-slate-700">
+                        <Clock size={14} className="text-slate-400" />
+                        {formatTime(c.horario)}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {stats.agendados} agendado(s) / meta {c.meta}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {transferMsg && (
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-700">
+              {transferMsg}
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <button
+              className="btn-primary flex-1 inline-flex items-center justify-center gap-2"
+              onClick={transferirSelecionados}
+              disabled={!transferTargetId || transferring || selectedIds.size === 0}
+            >
+              <ArrowRightLeft size={16} />
+              {transferring ? 'Transferindo...' : 'Transferir selecionados'}
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                setTransferOpen(false);
+                setTransferMsg(null);
+              }}
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={importOpen}
