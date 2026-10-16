@@ -51,6 +51,13 @@ const diaSemana = (data: string) => {
   return DIAS_SEMANA[new Date(data + 'T00:00:00').getDay()];
 };
 
+const normalizarNome = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
 const labelIntegracao = (fezIntegracao: boolean | null) => {
   if (fezIntegracao === true) return 'Já fez';
   if (fezIntegracao === false) return 'Não fez';
@@ -235,7 +242,20 @@ export function ListaEsperaPage() {
 
     // 2. Evitar agendamento duplicado na coleta
     const { data: ags } = await dbAgendamentos.listByColeta(selectedColetaId);
-    const jaTem = ((ags as { condutor_id: string; status: string }[]) || []).some(
+    const agendamentosColeta = (ags as { condutor_id: string; status: string; condutor?: { nome_completo?: string } }[]) || [];
+    const nomeJaExiste = agendamentosColeta.some(
+      (a) =>
+        a.status !== 'cancelado' &&
+        normalizarNome(a.condutor?.nome_completo || '') === normalizarNome(approveTarget.nome)
+    );
+
+    if (nomeJaExiste) {
+      setErroAprovacao('Já existe um agendamento com este nome nesta coleta.');
+      setProcessing(false);
+      return;
+    }
+
+    const jaTem = agendamentosColeta.some(
       (a) => a.condutor_id === condutorId && a.status !== 'cancelado'
     );
 
@@ -246,9 +266,7 @@ export function ListaEsperaPage() {
         status: 'agendado',
       });
       if (errAg) {
-        setErroAprovacao(
-          'Não foi possível gerar o agendamento (verifique conflito de horário ou vagas). Tente novamente.'
-        );
+        setErroAprovacao('Não foi possível gerar o agendamento. Tente novamente.');
         setProcessing(false);
         return;
       }

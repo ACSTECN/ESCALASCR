@@ -34,6 +34,13 @@ const statusBorder: Record<StatusAgendamento, string> = {
   concluido: 'border-l-purple-500',
 };
 
+const normalizarNome = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
 export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailDrawerProps) {
   const user = useAuthStore((s) => s.user);
   const canEdit = canWrite(user?.perfil);
@@ -90,6 +97,18 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     if (!selectedCondutor || !coleta) return;
     setLoading(true);
 
+    const condutorSelecionado = condutores.find((c) => c.id === selectedCondutor);
+    const nomeSelecionado = normalizarNome(condutorSelecionado?.nome_completo || '');
+    const nomeJaAgendado = agendamentosAtivos.some(
+      (a) => normalizarNome(a.condutor?.nome_completo || '') === nomeSelecionado
+    );
+
+    if (nomeSelecionado && nomeJaAgendado) {
+      alert('Já existe um agendamento com este nome nesta coleta.');
+      setLoading(false);
+      return;
+    }
+
     const agendamentoExistente = agendamentosAtuais.find((a) => a.condutor_id === selectedCondutor);
     let error: { message: string } | null = null;
 
@@ -109,7 +128,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     }
 
     if (error) {
-      alert(error.message.includes('atingida') ? 'Meta atingida! Não há vagas.' : error.message.includes('conflitante') ? 'Conflito de horário para este condutor.' : error.message);
+      alert(error.message);
     } else {
       setSelectedCondutor('');
       onUpdated();
@@ -233,8 +252,17 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     let agendados = 0;
     const erros: string[] = [];
     const agendamentoMap = new Map(agendamentosAtuais.map((a) => [a.condutor_id, a]));
+    const nomesAgendados = new Set(
+      agendamentosAtivos.map((a) => normalizarNome(a.condutor?.nome_completo || '')).filter(Boolean)
+    );
 
     for (const item of parsed) {
+      const nomeNormalizado = normalizarNome(item.nome);
+      if (nomeNormalizado && nomesAgendados.has(nomeNormalizado)) {
+        erros.push(`${item.nome}: já existe um agendamento com este nome nesta coleta`);
+        continue;
+      }
+
       let condutor = item.cpf ? cpfMap.get(item.cpf) : undefined;
       // Cria o condutor se não existir
       if (!condutor) {
@@ -294,13 +322,14 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         }
 
         if (error) {
-          erros.push(`${item.nome}: ${error.message.includes('atingida') ? 'meta atingida' : error.message.includes('conflitante') ? 'conflito de horário' : error.message}`);
+          erros.push(`${item.nome}: ${error.message}`);
         } else {
           agendamentoMap.set(condutor.id, {
             ...(agendamentoExistente || {}),
             condutor_id: condutor.id,
             status: 'agendado',
           } as Agendamento);
+          nomesAgendados.add(nomeNormalizado);
           agendados++;
         }
       }
