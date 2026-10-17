@@ -55,18 +55,18 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen tech-surface tech-grid p-4 lg:p-8">
+    <div className="min-h-screen tech-surface p-4 lg:p-8">
       <div className="mx-auto grid min-h-full w-full max-w-7xl items-center gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className="tech-panel relative hidden overflow-hidden p-10 text-white lg:block">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.24),_transparent_26%),radial-gradient(circle_at_bottom_right,_rgba(37,99,235,0.26),_transparent_32%)]" />
-          <div className="relative z-10 flex h-full flex-col justify-between">
+        <section className="tech-panel relative hidden overflow-hidden p-10 lg:block">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.1),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(37,99,235,0.12),_transparent_28%)]" />
+          <div className="relative z-10 flex h-full flex-col justify-between text-slate-800">
             <div className="space-y-8">
-              <BrandLogo light subtitle="Sistema de Escalas" />
+              <BrandLogo subtitle="Sistema de Escalas" />
               <div className="max-w-xl">
-                <h1 className="text-4xl font-black leading-tight tracking-[0.08em]">
+                <h1 className="text-4xl font-black leading-tight tracking-[0.08em] text-slate-900">
                   Operacao de escala com cara de plataforma de logistica premium.
                 </h1>
-                <p className="mt-4 text-base text-slate-300">
+                <p className="mt-4 text-base text-slate-600">
                   Painel com leitura rapida, identidade neon e foco total em produtividade de HUB,
                   calendarizacao e agendamento em tempo real.
                 </p>
@@ -74,20 +74,20 @@ export function LoginPage() {
             </div>
 
             <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur">
-                <ShieldCheck className="text-cyan-300" size={22} />
-                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-400">Acesso</div>
-                <div className="mt-2 text-sm font-semibold">Perfil centralizado e seguro</div>
+              <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 backdrop-blur">
+                <ShieldCheck className="text-cyan-600" size={22} />
+                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-500">Acesso</div>
+                <div className="mt-2 text-sm font-semibold text-slate-900">Perfil centralizado e seguro</div>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur">
-                <RadioTower className="text-cyan-300" size={22} />
-                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-400">Status</div>
-                <div className="mt-2 text-sm font-semibold">Atualizacao em tempo real</div>
+              <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 backdrop-blur">
+                <RadioTower className="text-cyan-600" size={22} />
+                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-500">Status</div>
+                <div className="mt-2 text-sm font-semibold text-slate-900">Atualizacao em tempo real</div>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur">
-                <Sparkles className="text-cyan-300" size={22} />
-                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-400">Visual</div>
-                <div className="mt-2 text-sm font-semibold">Interface mais tecnologica</div>
+              <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 backdrop-blur">
+                <Sparkles className="text-cyan-600" size={22} />
+                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-500">Visual</div>
+                <div className="mt-2 text-sm font-semibold text-slate-900">Interface mais leve e sofisticada</div>
               </div>
             </div>
           </div>
@@ -95,30 +95,30 @@ export function LoginPage() {
 
         <div className="mx-auto w-full max-w-xl">
           <div className="mb-8 flex justify-center lg:hidden">
-            <BrandLogo light subtitle="Sistema de Escalas" />
+            <BrandLogo subtitle="Sistema de Escalas" />
           </div>
 
           <div className="tech-panel overflow-hidden p-8 lg:p-10">
             <div className="mb-8 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-black text-white">Acessar sistema</h2>
-                <p className="mt-2 text-sm text-slate-400">
+                <h2 className="text-2xl font-black text-slate-900">Acessar sistema</h2>
+                <p className="mt-2 text-sm text-slate-500">
                   Entre no ambiente operacional para acompanhar metas, agenda e ocupacao dos HUBs.
                 </p>
               </div>
-              <div className="hidden sm:block rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200">
+              <div className="hidden sm:block rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-700">
                 CR Logistics
               </div>
             </div>
 
             {!isSupabaseConfigured && (
-              <div className="mb-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-3 text-sm text-amber-200">
+              <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 ⚠️ Supabase não configurado. Crie um arquivo <code className="rounded bg-amber-100 px-1">.env</code> com <code className="rounded bg-amber-100 px-1">VITE_SUPABASE_URL</code> e <code className="rounded bg-amber-100 px-1">VITE_SUPABASE_ANON_KEY</code>.
               </div>
             )}
 
             {error && (
-              <div className="mb-4 rounded-2xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-200">
+              <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 {error}
               </div>
             )}
@@ -170,13 +170,13 @@ export function LoginPage() {
               </button>
             </div>
 
-            <div className="mt-8 border-t border-white/10 pt-6 text-center text-xs text-slate-400">
+            <div className="mt-8 border-t border-slate-200 pt-6 text-center text-xs text-slate-500">
               <p>
                 Após criar a conta, peça a um administrador para elevar seu perfil.
                 <br />
                 Para tornar um usuário admin, execute no Supabase SQL:
               </p>
-              <code className="mt-3 block rounded-2xl border border-white/10 bg-white/5 p-3 text-slate-300">
+              <code className="mt-3 block rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-700">
                 update usuarios set perfil = 'admin' where email = 'seu@email.com';
               </code>
             </div>

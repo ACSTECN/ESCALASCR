@@ -56,16 +56,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         />
       )}
       <aside
-        className={`tech-surface tech-grid fixed lg:static inset-y-0 left-0 z-50 w-72 text-slate-100 flex flex-col transform overflow-hidden transition-transform duration-300 ${
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white/90 text-slate-800 border-r border-slate-200/80 shadow-[0_20px_60px_rgba(15,23,42,0.08)] flex flex-col transform overflow-hidden backdrop-blur-xl transition-transform duration-300 ${
           open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.14),_transparent_22%),radial-gradient(circle_at_bottom,_rgba(59,130,246,0.16),_transparent_30%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.08),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.08),_transparent_26%)]" />
 
         {/* Logo */}
-        <div className="relative flex items-start justify-between px-5 py-5 border-b border-white/10">
-          <BrandLogo compact light subtitle="Gestão de Coletas" />
-          <button className="lg:hidden text-slate-400 hover:text-white" onClick={onClose}>
+        <div className="relative flex items-start justify-between px-5 py-5 border-b border-slate-200/80">
+          <BrandLogo compact subtitle="Gestão de Coletas" />
+          <button className="lg:hidden text-slate-400 hover:text-slate-900" onClick={onClose}>
             <X size={20} />
           </button>
         </div>
@@ -81,12 +81,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               className={({ isActive }) =>
                 `group flex items-center gap-3 px-3 py-3 rounded-2xl text-sm font-medium transition-all ${
                   isActive
-                    ? 'border border-cyan-400/40 bg-white/10 text-white shadow-[0_0_30px_rgba(34,211,238,0.18)] backdrop-blur'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                    ? 'border border-cyan-200 bg-cyan-50 text-slate-900 shadow-[0_12px_30px_rgba(34,211,238,0.12)]'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`
               }
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-cyan-200 transition-transform group-hover:scale-105">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-100 bg-white text-cyan-700 transition-transform group-hover:scale-105">
                 <item.icon size={18} />
               </span>
               <span className="flex-1">{item.label}</span>
@@ -96,16 +96,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* User */}
         {user && (
-          <div className="relative p-4 border-t border-white/10">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur">
+          <div className="relative p-4 border-t border-slate-200/80">
+            <div className="rounded-2xl border border-slate-200 bg-white/90 p-3 backdrop-blur">
               <div className="mb-2 neon-divider" />
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-400/20 to-blue-500/20 border border-cyan-300/20 flex items-center justify-center font-semibold text-sm text-white">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-100 to-blue-100 border border-cyan-200 flex items-center justify-center font-semibold text-sm text-slate-900">
                 {user.nome.charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-medium truncate text-white">{user.nome}</div>
-                  <div className="text-xs text-slate-400">{PERFIL_LABELS[user.perfil]}</div>
+                  <div className="text-sm font-medium truncate text-slate-900">{user.nome}</div>
+                  <div className="text-xs text-slate-500">{PERFIL_LABELS[user.perfil]}</div>
                 </div>
               </div>
             </div>
