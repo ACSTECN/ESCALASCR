@@ -3,6 +3,7 @@ import { CalendarDays, MapPin, CheckCircle2, AlertCircle, Loader2 } from 'lucide
 import { dbCidades, dbHubs, dbInteresses } from '@/lib/db';
 import type { Cidade, Hub } from '@/types';
 import { DIAS_SEMANA } from '@/types';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 
 const maskCpf = (v: string) => {
   const d = v.replace(/\D/g, '').slice(0, 11);
@@ -103,20 +104,45 @@ export function InteresseEntregadorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg">
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-6">
-          <div className="w-11 h-11 rounded-xl bg-brand-600 flex items-center justify-center font-bold text-white text-lg">
-            E
-          </div>
-          <div className="text-white">
-            <div className="font-bold leading-tight">Escalas CR</div>
-            <div className="text-xs text-slate-300">Interesse em Coletas</div>
-          </div>
-        </div>
+    <div className="min-h-screen tech-surface tech-grid flex items-center justify-center p-4 lg:p-8">
+      <div className="grid w-full max-w-7xl items-center gap-6 lg:grid-cols-[1fr_1.05fr]">
+        <section className="tech-panel relative hidden overflow-hidden p-10 text-white lg:block">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.24),_transparent_26%),radial-gradient(circle_at_bottom_right,_rgba(37,99,235,0.26),_transparent_32%)]" />
+          <div className="relative z-10 flex h-full flex-col justify-between">
+            <div>
+              <BrandLogo light subtitle="Interesse em Coletas" />
+              <h1 className="mt-10 max-w-xl text-4xl font-black leading-tight tracking-[0.08em]">
+                Cadastro de interesse com visual mais premium e leitura direta.
+              </h1>
+              <p className="mt-4 max-w-xl text-base text-slate-300">
+                O entregador registra disponibilidade, integração e HUB desejado em uma experiência
+                mais forte de marca e mais confiável para operação.
+              </p>
+            </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="grid gap-4">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <div className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">Regra clara</div>
+                <div className="mt-2 text-sm text-slate-200">
+                  Interesse não garante agendamento. Primeiro entra a confirmação da operação.
+                </div>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <div className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">Dados essenciais</div>
+                <div className="mt-2 text-sm text-slate-200">
+                  Nome, CPF, integração, HUB e data prontos para lista de espera e contato rápido.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="w-full">
+          <div className="mb-8 flex justify-center lg:hidden">
+            <BrandLogo light subtitle="Interesse em Coletas" />
+          </div>
+
+          <div className="card overflow-hidden">
           {sucesso ? (
             <div className="p-8 text-center">
               <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
@@ -305,6 +331,7 @@ export function InteresseEntregadorPage() {
         <p className="text-center text-xs text-slate-400 mt-4">
           Escalas CR · Gestão de Coletas
         </p>
+        </div>
       </div>
     </div>
   );

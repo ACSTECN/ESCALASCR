@@ -81,16 +81,53 @@ export function MetasPage() {
 
   const save = async () => {
     if (!form.hub_id) return;
+    if (diasSelecionados.length === 0) {
+      alert('Selecione pelo menos um dia da semana.');
+      return;
+    }
+
     if (editing) {
-      await dbMetas.update(editing.id, { ...form, dia_semana: diasSelecionados[0] });
-    } else {
-      if (diasSelecionados.length === 0) {
-        alert('Selecione pelo menos um dia da semana.');
-        return;
+      const diaSelecionado = diasSelecionados[0];
+      const metaConflitante = metas.find(
+        (m) => m.hub_id === form.hub_id && m.dia_semana === diaSelecionado && m.id !== editing.id
+      );
+
+      await dbColetas.removeByMetaCriteriaInRange(
+        editing.hub_id,
+        editing.dia_semana,
+        editing.horario,
+        periodo.data_inicio,
+        periodo.data_fim
+      );
+
+      if (metaConflitante) {
+        await dbColetas.removeByMetaCriteriaInRange(
+          metaConflitante.hub_id,
+          metaConflitante.dia_semana,
+          metaConflitante.horario,
+          periodo.data_inicio,
+          periodo.data_fim
+        );
+        await dbMetas.update(metaConflitante.id, { ...form, dia_semana: diaSelecionado });
+        await dbMetas.remove(editing.id);
+      } else {
+        await dbMetas.update(editing.id, { ...form, dia_semana: diaSelecionado });
       }
-      // Cria uma meta para cada dia selecionado
+    } else {
       for (const dia of diasSelecionados) {
-        await dbMetas.create({ ...form, dia_semana: dia });
+        const metaExistente = metas.find((m) => m.hub_id === form.hub_id && m.dia_semana === dia);
+        if (metaExistente) {
+          await dbColetas.removeByMetaCriteriaInRange(
+            metaExistente.hub_id,
+            metaExistente.dia_semana,
+            metaExistente.horario,
+            periodo.data_inicio,
+            periodo.data_fim
+          );
+          await dbMetas.update(metaExistente.id, { ...form, dia_semana: dia });
+        } else {
+          await dbMetas.create({ ...form, dia_semana: dia });
+        }
       }
     }
     // Gera coletas automaticamente para o período selecionado

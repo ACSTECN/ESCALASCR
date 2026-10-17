@@ -14,6 +14,7 @@ import {
 import type { PerfilUsuario } from '@/types';
 import { PERFIL_LABELS } from '@/types';
 import { useAuthStore } from '@/store/auth';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 
 interface NavItem {
   to: string;
@@ -55,28 +56,22 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         />
       )}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-slate-900 text-slate-100 flex flex-col transform transition-transform duration-300 ${
+        className={`tech-surface tech-grid fixed lg:static inset-y-0 left-0 z-50 w-72 text-slate-100 flex flex-col transform overflow-hidden transition-transform duration-300 ${
           open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.14),_transparent_22%),radial-gradient(circle_at_bottom,_rgba(59,130,246,0.16),_transparent_30%)]" />
+
         {/* Logo */}
-        <div className="flex items-center justify-between h-16 px-5 border-b border-slate-800">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center font-bold text-white">
-              E
-            </div>
-            <div>
-              <div className="font-bold text-sm leading-tight">Escalas CR</div>
-              <div className="text-[10px] text-slate-400">Gestão de Coletas</div>
-            </div>
-          </div>
+        <div className="relative flex items-start justify-between px-5 py-5 border-b border-white/10">
+          <BrandLogo compact light subtitle="Gestão de Coletas" />
           <button className="lg:hidden text-slate-400 hover:text-white" onClick={onClose}>
             <X size={20} />
           </button>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        <nav className="relative flex-1 overflow-y-auto py-4 px-3 space-y-1.5">
           {items.map((item) => (
             <NavLink
               key={item.to}
@@ -84,29 +79,34 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               end={item.to === '/'}
               onClick={onClose}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                `group flex items-center gap-3 px-3 py-3 rounded-2xl text-sm font-medium transition-all ${
                   isActive
-                    ? 'bg-brand-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    ? 'border border-cyan-400/40 bg-white/10 text-white shadow-[0_0_30px_rgba(34,211,238,0.18)] backdrop-blur'
+                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`
               }
             >
-              <item.icon size={18} />
-              {item.label}
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-cyan-200 transition-transform group-hover:scale-105">
+                <item.icon size={18} />
+              </span>
+              <span className="flex-1">{item.label}</span>
             </NavLink>
           ))}
         </nav>
 
         {/* User */}
         {user && (
-          <div className="p-4 border-t border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center font-semibold text-sm">
+          <div className="relative p-4 border-t border-white/10">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur">
+              <div className="mb-2 neon-divider" />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-400/20 to-blue-500/20 border border-cyan-300/20 flex items-center justify-center font-semibold text-sm text-white">
                 {user.nome.charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <div className="text-sm font-medium truncate">{user.nome}</div>
-                <div className="text-xs text-slate-400">{PERFIL_LABELS[user.perfil]}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate text-white">{user.nome}</div>
+                  <div className="text-xs text-slate-400">{PERFIL_LABELS[user.perfil]}</div>
+                </div>
               </div>
             </div>
           </div>
