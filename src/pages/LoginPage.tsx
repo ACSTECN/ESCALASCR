@@ -57,16 +57,16 @@ export function LoginPage() {
   return (
     <div className="min-h-screen tech-surface p-4 lg:p-8">
       <div className="mx-auto grid min-h-full w-full max-w-7xl items-center gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className="tech-panel relative hidden overflow-hidden p-10 lg:block">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.1),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(37,99,235,0.12),_transparent_28%)]" />
-          <div className="relative z-10 flex h-full flex-col justify-between text-slate-800">
+        <section className="tech-hero relative hidden overflow-hidden rounded-[32px] border border-white/10 p-10 text-white shadow-[0_30px_90px_rgba(2,6,23,0.32)] lg:block">
+          <div className="absolute inset-0 tech-grid opacity-20" />
+          <div className="relative z-10 flex h-full flex-col justify-between">
             <div className="space-y-8">
-              <BrandLogo subtitle="Sistema de Escalas" />
+              <BrandLogo light subtitle="Sistema de Escalas" />
               <div className="max-w-xl">
-                <h1 className="text-4xl font-black leading-tight tracking-[0.08em] text-slate-900">
+                <h1 className="text-4xl font-black leading-tight tracking-[0.08em] text-white">
                   Operacao de escala com cara de plataforma de logistica premium.
                 </h1>
-                <p className="mt-4 text-base text-slate-600">
+                <p className="mt-4 text-base text-slate-300">
                   Painel com leitura rapida, identidade neon e foco total em produtividade de HUB,
                   calendarizacao e agendamento em tempo real.
                 </p>
@@ -74,20 +74,20 @@ export function LoginPage() {
             </div>
 
             <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 backdrop-blur">
-                <ShieldCheck className="text-cyan-600" size={22} />
-                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-500">Acesso</div>
-                <div className="mt-2 text-sm font-semibold text-slate-900">Perfil centralizado e seguro</div>
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+                <ShieldCheck className="text-cyan-300" size={22} />
+                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-400">Acesso</div>
+                <div className="mt-2 text-sm font-semibold text-white">Perfil centralizado e seguro</div>
               </div>
-              <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 backdrop-blur">
-                <RadioTower className="text-cyan-600" size={22} />
-                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-500">Status</div>
-                <div className="mt-2 text-sm font-semibold text-slate-900">Atualizacao em tempo real</div>
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+                <RadioTower className="text-cyan-300" size={22} />
+                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-400">Status</div>
+                <div className="mt-2 text-sm font-semibold text-white">Atualizacao em tempo real</div>
               </div>
-              <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 backdrop-blur">
-                <Sparkles className="text-cyan-600" size={22} />
-                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-500">Visual</div>
-                <div className="mt-2 text-sm font-semibold text-slate-900">Interface mais leve e sofisticada</div>
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+                <Sparkles className="text-cyan-300" size={22} />
+                <div className="mt-4 text-xs uppercase tracking-[0.24em] text-slate-400">Visual</div>
+                <div className="mt-2 text-sm font-semibold text-white">Interface mais marcante e sofisticada</div>
               </div>
             </div>
           </div>
@@ -95,7 +95,7 @@ export function LoginPage() {
 
         <div className="mx-auto w-full max-w-xl">
           <div className="mb-8 flex justify-center lg:hidden">
-            <BrandLogo subtitle="Sistema de Escalas" />
+            <BrandLogo light subtitle="Sistema de Escalas" />
           </div>
 
           <div className="tech-panel overflow-hidden p-8 lg:p-10">

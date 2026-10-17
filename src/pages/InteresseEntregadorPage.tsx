@@ -106,30 +106,30 @@ export function InteresseEntregadorPage() {
   return (
     <div className="min-h-screen tech-surface flex items-center justify-center p-4 lg:p-8">
       <div className="grid w-full max-w-7xl items-center gap-6 lg:grid-cols-[1fr_1.05fr]">
-        <section className="tech-panel relative hidden overflow-hidden p-10 lg:block">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.1),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(37,99,235,0.12),_transparent_28%)]" />
-          <div className="relative z-10 flex h-full flex-col justify-between text-slate-800">
+        <section className="tech-hero relative hidden overflow-hidden rounded-[32px] border border-white/10 p-10 text-white shadow-[0_30px_90px_rgba(2,6,23,0.32)] lg:block">
+          <div className="absolute inset-0 tech-grid opacity-20" />
+          <div className="relative z-10 flex h-full flex-col justify-between">
             <div>
-              <BrandLogo subtitle="Interesse em Coletas" />
-              <h1 className="mt-10 max-w-xl text-4xl font-black leading-tight tracking-[0.08em] text-slate-900">
+              <BrandLogo light subtitle="Interesse em Coletas" />
+              <h1 className="mt-10 max-w-xl text-4xl font-black leading-tight tracking-[0.08em] text-white">
                 Cadastro de interesse com visual mais premium e leitura direta.
               </h1>
-              <p className="mt-4 max-w-xl text-base text-slate-600">
+              <p className="mt-4 max-w-xl text-base text-slate-300">
                 O entregador registra disponibilidade, integração e HUB desejado em uma experiência
                 mais forte de marca e mais confiável para operação.
               </p>
             </div>
 
             <div className="grid gap-4">
-              <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 backdrop-blur">
-                <div className="text-xs uppercase tracking-[0.3em] text-cyan-700/70">Regra clara</div>
-                <div className="mt-2 text-sm text-slate-700">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <div className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">Regra clara</div>
+                <div className="mt-2 text-sm text-slate-200">
                   Interesse não garante agendamento. Primeiro entra a confirmação da operação.
                 </div>
               </div>
-              <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 backdrop-blur">
-                <div className="text-xs uppercase tracking-[0.3em] text-cyan-700/70">Dados essenciais</div>
-                <div className="mt-2 text-sm text-slate-700">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+                <div className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">Dados essenciais</div>
+                <div className="mt-2 text-sm text-slate-200">
                   Nome, CPF, integração, HUB e data prontos para lista de espera e contato rápido.
                 </div>
               </div>
@@ -139,7 +139,7 @@ export function InteresseEntregadorPage() {
 
         <div className="w-full">
           <div className="mb-8 flex justify-center lg:hidden">
-            <BrandLogo subtitle="Interesse em Coletas" />
+            <BrandLogo light subtitle="Interesse em Coletas" />
           </div>
 
           <div className="tech-panel overflow-hidden">

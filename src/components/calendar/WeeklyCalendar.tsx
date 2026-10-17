@@ -177,15 +177,15 @@ export function WeeklyCalendar({
 
         {/* Mobile selection bar */}
         {selectionMode && (
-          <div className="fixed bottom-4 left-4 right-4 z-40 bg-white rounded-2xl shadow-2xl border border-slate-200 px-4 py-3 flex items-center gap-3">
+          <div className="fixed bottom-4 left-4 right-4 z-40 rounded-2xl border border-white/10 bg-slate-950/90 px-4 py-3 text-white shadow-[0_24px_70px_rgba(2,6,23,0.34)] backdrop-blur-xl flex items-center gap-3">
             <button
-              className="flex items-center gap-1 text-xs font-medium text-slate-700"
+              className="flex items-center gap-1 text-xs font-medium text-slate-100"
               onClick={selectAll}
             >
-              {allSelected ? <CheckSquare size={16} className="text-brand-600" /> : <Square size={16} />}
+              {allSelected ? <CheckSquare size={16} className="text-cyan-400" /> : <Square size={16} className="text-slate-400" />}
               {allSelected ? 'Todas' : 'Todas'}
             </button>
-            <span className="text-xs text-slate-500 flex-1">
+            <span className="text-xs text-slate-300 flex-1">
               {selectedIds.size} selecionada(s)
             </span>
             <button
@@ -276,22 +276,24 @@ export function WeeklyCalendar({
               {/* Day header */}
               <div
                 className={`text-center py-2 rounded-t-xl border-b-2 ${
-                  today ? 'bg-brand-600 text-white border-brand-700' : 'bg-slate-100 text-slate-700 border-slate-200'
+                  today
+                    ? 'bg-slate-950 text-white border-cyan-400/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                    : 'bg-[linear-gradient(180deg,rgba(226,232,240,0.95),rgba(241,245,249,0.92))] text-slate-800 border-slate-300'
                 }`}
               >
                 <div className="text-xs font-medium uppercase">{format(day, 'EEE', { locale: ptBR })}</div>
                 <div className="text-lg font-bold leading-tight">{format(day, 'dd')}</div>
                 {dayColetas.length > 0 && (
-                  <div className={`text-[10px] ${today ? 'text-brand-100' : cc.text}`}>
+                  <div className={`text-[10px] ${today ? 'text-cyan-200' : cc.text}`}>
                     {totalAgendados}/{totalMeta} ({ocupacao}%)
                   </div>
                 )}
               </div>
 
               {/* Coletas */}
-              <div className="flex-1 bg-white/50 border border-t-0 border-slate-200 rounded-b-xl p-2 space-y-2 min-h-[120px]">
+              <div className="flex-1 rounded-b-xl border border-t-0 border-slate-300/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(226,232,240,0.44))] p-2 space-y-2 min-h-[120px] backdrop-blur">
                 {dayColetas.length === 0 ? (
-                  <div className="text-center text-xs text-slate-300 py-4">Sem coletas</div>
+                  <div className="py-4 text-center text-xs text-slate-400">Sem coletas</div>
                 ) : (
                   dayColetas.map((c) => (
                     <ColetaCard
@@ -313,15 +315,15 @@ export function WeeklyCalendar({
 
       {/* Floating action bar when items selected */}
       {selectionMode && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white rounded-2xl shadow-2xl border border-slate-200 px-5 py-3 flex items-center gap-4">
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/90 px-5 py-3 text-white shadow-[0_24px_70px_rgba(2,6,23,0.34)] backdrop-blur-xl">
           <button
-            className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-brand-600"
+            className="flex items-center gap-2 text-sm font-medium text-slate-100 hover:text-cyan-300"
             onClick={selectAll}
           >
-            {allSelected ? <CheckSquare size={18} className="text-brand-600" /> : <Square size={18} />}
+            {allSelected ? <CheckSquare size={18} className="text-cyan-400" /> : <Square size={18} className="text-slate-400" />}
             {allSelected ? 'Desmarcar todas' : 'Selecionar todas'}
           </button>
-          <span className="text-sm text-slate-500">
+          <span className="text-sm text-slate-300">
             {selectedIds.size} coleta(s) selecionada(s)
           </span>
           <button
