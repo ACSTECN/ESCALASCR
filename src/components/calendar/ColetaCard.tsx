@@ -23,8 +23,8 @@ export function ColetaCard({ coleta, thresholds, onClick, selectable, selected, 
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-3 rounded-xl border ${c.border} ${c.bg} hover:shadow-md transition-all cursor-pointer group relative ${
-        selected ? 'ring-2 ring-blue-500' : ''
+      className={`w-full text-left p-3 rounded-2xl border border-white/10 bg-[linear-gradient(145deg,rgba(2,6,23,0.92),rgba(15,23,42,0.9))] shadow-[0_18px_45px_rgba(2,6,23,0.35)] hover:shadow-[0_24px_60px_rgba(2,6,23,0.42)] transition-all cursor-pointer group relative ${
+        selected ? 'ring-2 ring-cyan-400/80' : ''
       }`}
     >
       {selectable && (
@@ -44,23 +44,23 @@ export function ColetaCard({ coleta, thresholds, onClick, selectable, selected, 
           className="absolute top-2 right-2 cursor-pointer"
         >
           {selected ? (
-            <CheckSquare size={18} className="text-blue-600" />
+            <CheckSquare size={18} className="text-cyan-300" />
           ) : (
-            <Square size={18} className="text-slate-400" />
+            <Square size={18} className="text-slate-500" />
           )}
         </span>
       )}
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
-          <span className="font-bold text-sm text-slate-800">{coleta.hub?.sigla}</span>
+          <span className="font-bold text-sm text-white">{coleta.hub?.sigla}</span>
           {coleta.is_demo && <Badge variant="warning">DEMO</Badge>}
         </div>
-        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${c.badge}`}>
+        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border border-white/10 ${c.badge}`}>
           {STATUS_COLETA_LABELS[coleta.status]}
         </span>
       </div>
 
-      <div className="flex items-center gap-1 text-xs text-slate-600 mb-2">
+      <div className="flex items-center gap-1 text-xs text-slate-400 mb-2">
         <Clock size={12} />
         <span>{formatTime(coleta.horario)}</span>
       </div>
@@ -70,7 +70,7 @@ export function ColetaCard({ coleta, thresholds, onClick, selectable, selected, 
         <span className="text-xs text-slate-500">/ {coleta.meta} agendados</span>
       </div>
 
-      <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
+      <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
         <span className="flex items-center gap-1">
           <Users size={12} />
           {vagas} vagas
@@ -79,7 +79,7 @@ export function ColetaCard({ coleta, thresholds, onClick, selectable, selected, 
       </div>
 
       {/* Progress bar */}
-      <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
         <div
           className={`h-full ${c.bar} rounded-full transition-all duration-500`}
           style={{ width: `${Math.min(ocupacao, 100)}%` }}

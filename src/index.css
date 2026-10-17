@@ -8,11 +8,12 @@
     -moz-osx-font-smoothing: grayscale;
   }
   body {
-    @apply bg-slate-950 text-slate-800;
+    @apply bg-slate-950 text-slate-100;
     background-image:
-      radial-gradient(circle at top left, rgba(14, 165, 233, 0.14), transparent 26%),
-      radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 24%),
-      linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+      radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 22%),
+      radial-gradient(circle at 85% 10%, rgba(37, 99, 235, 0.18), transparent 20%),
+      radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.12), transparent 24%),
+      linear-gradient(180deg, #020617 0%, #07111f 42%, #020617 100%);
     background-attachment: fixed;
   }
 }
@@ -25,28 +26,28 @@
     @apply btn border border-cyan-400/40 bg-gradient-to-r from-brand-600 via-blue-600 to-cyan-500 text-white shadow-[0_10px_30px_rgba(37,99,235,0.28)] hover:brightness-110 focus:ring-brand-500;
   }
   .btn-secondary {
-    @apply btn border border-white/70 bg-white/80 text-slate-700 shadow-sm backdrop-blur hover:bg-white focus:ring-brand-500;
+    @apply btn border border-white/10 bg-slate-900/80 text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.24)] backdrop-blur hover:bg-slate-800/90 focus:ring-brand-500;
   }
   .btn-danger {
     @apply btn border border-red-500/30 bg-gradient-to-r from-red-600 to-rose-500 text-white shadow-[0_10px_30px_rgba(239,68,68,0.24)] hover:brightness-110 focus:ring-red-500;
   }
   .btn-ghost {
-    @apply btn text-slate-600 hover:bg-white/70;
+    @apply btn text-slate-300 hover:bg-white/5 hover:text-white;
   }
   .input {
-    @apply w-full rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-[0_8px_24px_rgba(15,23,42,0.04)] backdrop-blur focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
+    @apply w-full rounded-xl border border-slate-200/90 bg-white/90 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 shadow-[0_8px_24px_rgba(15,23,42,0.04)] backdrop-blur focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400;
   }
   .label {
     @apply block text-sm font-medium text-slate-700 mb-1;
   }
   .card {
-    @apply rounded-2xl border border-white/70 bg-white/80 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur;
+    @apply rounded-2xl border border-white/70 bg-white/80 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur;
   }
   .badge {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
   }
   .tech-panel {
-    @apply rounded-[28px] border border-white/10 bg-slate-950/70 shadow-[0_25px_80px_rgba(2,6,23,0.55)] backdrop-blur-xl;
+    @apply rounded-[28px] border border-cyan-400/10 bg-slate-950/80 shadow-[0_25px_80px_rgba(2,6,23,0.62)] backdrop-blur-xl;
   }
   .tech-grid {
     background-image:
@@ -56,9 +57,10 @@
   }
   .tech-surface {
     background-image:
-      radial-gradient(circle at top left, rgba(34, 211, 238, 0.16), transparent 28%),
-      radial-gradient(circle at bottom right, rgba(37, 99, 235, 0.16), transparent 30%),
-      linear-gradient(135deg, rgba(2, 6, 23, 0.96), rgba(15, 23, 42, 0.92));
+      radial-gradient(circle at top left, rgba(34, 211, 238, 0.18), transparent 24%),
+      radial-gradient(circle at 80% 20%, rgba(37, 99, 235, 0.22), transparent 22%),
+      radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.15), transparent 28%),
+      linear-gradient(135deg, rgba(2, 6, 23, 0.98), rgba(3, 7, 18, 0.98));
   }
   .neon-divider {
     @apply h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent;

@@ -142,23 +142,23 @@ export function InteresseEntregadorPage() {
             <BrandLogo light subtitle="Interesse em Coletas" />
           </div>
 
-          <div className="card overflow-hidden">
+          <div className="tech-panel overflow-hidden">
           {sucesso ? (
             <div className="p-8 text-center">
               <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="text-emerald-600" size={32} />
               </div>
-              <h2 className="text-xl font-bold text-slate-800">Interesse registrado!</h2>
-              <p className="text-sm text-slate-500 mt-2">
+              <h2 className="text-xl font-bold text-white">Interesse registrado!</h2>
+              <p className="text-sm text-slate-400 mt-2">
                 Você demonstrou interesse em fazer coleta em:
               </p>
-              <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 text-left space-y-2">
-                <div className="flex items-center gap-2 text-slate-700">
+              <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-4 text-left space-y-2">
+                <div className="flex items-center gap-2 text-slate-200">
                   <MapPin size={16} className="text-brand-600" />
                   <span className="font-semibold">{sucesso.hub.sigla}</span>
-                  <span className="text-slate-500">{sucesso.hub.nome}</span>
+                  <span className="text-slate-400">{sucesso.hub.nome}</span>
                 </div>
-                <div className="flex items-center gap-2 text-slate-700">
+                <div className="flex items-center gap-2 text-slate-200">
                   <CalendarDays size={16} className="text-brand-600" />
                   <span>
                     {new Date(sucesso.data + 'T00:00:00').toLocaleDateString('pt-BR')} ·{' '}
@@ -166,7 +166,7 @@ export function InteresseEntregadorPage() {
                   </span>
                 </div>
               </div>
-              <p className="text-xs text-slate-500 mt-4">
+              <p className="text-xs text-slate-400 mt-4">
                 Isso não garante seu agendamento na data interessada. Entraremos em contato para
                 fazer uma breve confirmação antes de agendar.
               </p>
@@ -176,9 +176,9 @@ export function InteresseEntregadorPage() {
             </div>
           ) : (
             <>
-              <div className="px-6 pt-6 pb-4 border-b border-slate-100">
-                <h1 className="text-lg font-bold text-slate-800">Quero fazer coleta</h1>
-                <p className="text-sm text-slate-500 mt-1">
+              <div className="px-6 pt-6 pb-4 border-b border-white/10">
+                <h1 className="text-lg font-bold text-white">Quero fazer coleta</h1>
+                <p className="text-sm text-slate-400 mt-1">
                   Preencha seus dados e escolha o HUB e o dia em que você tem interesse em trabalhar.
                 </p>
               </div>
@@ -225,8 +225,8 @@ export function InteresseEntregadorPage() {
                       onClick={() => setFezIntegracao(true)}
                       className={`rounded-xl border px-4 py-3 text-sm font-medium transition-colors ${
                         fezIntegracao === true
-                          ? 'border-brand-500 bg-brand-50 text-brand-700'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                          ? 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200'
+                          : 'border-white/10 text-slate-300 hover:border-cyan-400/30'
                       }`}
                     >
                       Sim, já fiz
@@ -236,8 +236,8 @@ export function InteresseEntregadorPage() {
                       onClick={() => setFezIntegracao(false)}
                       className={`rounded-xl border px-4 py-3 text-sm font-medium transition-colors ${
                         fezIntegracao === false
-                          ? 'border-brand-500 bg-brand-50 text-brand-700'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                          ? 'border-cyan-400/50 bg-cyan-400/10 text-cyan-200'
+                          : 'border-white/10 text-slate-300 hover:border-cyan-400/30'
                       }`}
                     >
                       Não fiz ainda
@@ -283,19 +283,19 @@ export function InteresseEntregadorPage() {
                   />
                   {data && (
                     <p className="text-xs text-slate-500 mt-1">
-                      {DIAS_SEMANA[new Date(data + 'T00:00:00').getDay()]}
+                      <span className="text-slate-400">{DIAS_SEMANA[new Date(data + 'T00:00:00').getDay()]}</span>
                     </p>
                   )}
                 </div>
 
                 {erro && (
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-400/20 text-sm text-red-200">
                     <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
                     <span>{erro}</span>
                   </div>
                 )}
 
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 space-y-2">
+                <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-200 space-y-2">
                   <p className="font-medium">
                     Isso não garante seu agendamento na data interessada.
                   </p>
@@ -304,7 +304,7 @@ export function InteresseEntregadorPage() {
                   </p>
                 </div>
 
-                <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
                   <input
                     type="checkbox"
                     className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"

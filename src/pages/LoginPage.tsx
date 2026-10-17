@@ -98,27 +98,27 @@ export function LoginPage() {
             <BrandLogo light subtitle="Sistema de Escalas" />
           </div>
 
-          <div className="card overflow-hidden p-8 lg:p-10">
+          <div className="tech-panel overflow-hidden p-8 lg:p-10">
             <div className="mb-8 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-black text-slate-900">Acessar sistema</h2>
-                <p className="mt-2 text-sm text-slate-500">
+                <h2 className="text-2xl font-black text-white">Acessar sistema</h2>
+                <p className="mt-2 text-sm text-slate-400">
                   Entre no ambiente operacional para acompanhar metas, agenda e ocupacao dos HUBs.
                 </p>
               </div>
-              <div className="hidden sm:block rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-700">
+              <div className="hidden sm:block rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200">
                 CR Logistics
               </div>
             </div>
 
             {!isSupabaseConfigured && (
-              <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <div className="mb-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-3 text-sm text-amber-200">
                 ⚠️ Supabase não configurado. Crie um arquivo <code className="rounded bg-amber-100 px-1">.env</code> com <code className="rounded bg-amber-100 px-1">VITE_SUPABASE_URL</code> e <code className="rounded bg-amber-100 px-1">VITE_SUPABASE_ANON_KEY</code>.
               </div>
             )}
 
             {error && (
-              <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div className="mb-4 rounded-2xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-200">
                 {error}
               </div>
             )}
@@ -170,13 +170,13 @@ export function LoginPage() {
               </button>
             </div>
 
-            <div className="mt-8 border-t border-slate-100 pt-6 text-center text-xs text-slate-400">
+            <div className="mt-8 border-t border-white/10 pt-6 text-center text-xs text-slate-400">
               <p>
                 Após criar a conta, peça a um administrador para elevar seu perfil.
                 <br />
                 Para tornar um usuário admin, execute no Supabase SQL:
               </p>
-              <code className="mt-3 block rounded-2xl bg-slate-50 p-3 text-slate-600">
+              <code className="mt-3 block rounded-2xl border border-white/10 bg-white/5 p-3 text-slate-300">
                 update usuarios set perfil = 'admin' where email = 'seu@email.com';
               </code>
             </div>
