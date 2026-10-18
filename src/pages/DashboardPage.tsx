@@ -41,6 +41,7 @@ export function DashboardPage() {
   const [periodo, setPeriodo] = useState<Periodo>('semana');
   const [dataInicio, setDataInicio] = useState(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [dataFim, setDataFim] = useState(format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+  const [comparativoHub, setComparativoHub] = useState<'agendados' | 'confirmados' | 'compareceu' | 'ausente'>('agendados');
 
   const loadData = async () => {
     setLoading(true);
@@ -144,17 +145,40 @@ export function DashboardPage() {
   }, [coletas]);
 
   const dadosPorHub = useMemo(() => {
-    const map = new Map<string, { meta: number; agendados: number }>();
+    const map = new Map<
+      string,
+      { meta: number; agendados: number; confirmados: number; compareceu: number; ausente: number }
+    >();
     for (const c of coletas) {
       const sigla = c.hub?.sigla || '?';
       const stats = calcColetaStats(c);
-      const cur = map.get(sigla) || { meta: 0, agendados: 0 };
+      const cur = map.get(sigla) || { meta: 0, agendados: 0, confirmados: 0, compareceu: 0, ausente: 0 };
       cur.meta += c.meta;
       cur.agendados += stats.agendados;
+      cur.confirmados += (c.agendamentos || []).filter((a) => a.status === 'confirmado').length;
+      cur.compareceu += (c.agendamentos || []).filter((a) => a.status === 'compareceu').length;
+      cur.ausente += (c.agendamentos || []).filter((a) => a.status === 'ausente').length;
       map.set(sigla, cur);
     }
-    return Array.from(map.entries()).map(([hub, v]) => ({ hub, meta: v.meta, agendados: v.agendados }));
+    return Array.from(map.entries()).map(([hub, v]) => ({
+      hub,
+      meta: v.meta,
+      agendados: v.agendados,
+      confirmados: v.confirmados,
+      compareceu: v.compareceu,
+      ausente: v.ausente,
+    }));
   }, [coletas]);
+
+  const comparativoHubConfig: Record<
+    'agendados' | 'confirmados' | 'compareceu' | 'ausente',
+    { label: string; color: string; labelColor: string }
+  > = {
+    agendados: { label: 'Agendados', color: '#10b981', labelColor: '#059669' },
+    confirmados: { label: 'Confirmados', color: '#2563eb', labelColor: '#1d4ed8' },
+    compareceu: { label: 'Compareceu', color: '#16a34a', labelColor: '#15803d' },
+    ausente: { label: 'Ausentes', color: '#ef4444', labelColor: '#dc2626' },
+  };
 
   const dadosPorDia = useMemo(() => {
     const map = new Map<number, { meta: number; agendados: number }>();
@@ -269,8 +293,32 @@ export function DashboardPage() {
 
           {/* Gráfico por HUB */}
           <div className="card p-5">
-            <h3 className="font-semibold text-slate-800 mb-4">Por HUB</h3>
-            <ChartLegend items={[{ label: 'Meta', color: '#94a3b8' }, { label: 'Agendados', color: '#10b981' }]} />
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <h3 className="font-semibold text-slate-800">Por HUB</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-500">Comparar com:</span>
+                <select
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  value={comparativoHub}
+                  onChange={(e) =>
+                    setComparativoHub(
+                      e.target.value as 'agendados' | 'confirmados' | 'compareceu' | 'ausente'
+                    )
+                  }
+                >
+                  <option value="agendados">Agendados</option>
+                  <option value="confirmados">Confirmados</option>
+                  <option value="compareceu">Compareceu</option>
+                  <option value="ausente">Ausentes</option>
+                </select>
+              </div>
+            </div>
+            <ChartLegend
+              items={[
+                { label: 'Meta', color: '#94a3b8' },
+                { label: comparativoHubConfig[comparativoHub].label, color: comparativoHubConfig[comparativoHub].color },
+              ]}
+            />
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={dadosPorHub} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -280,8 +328,18 @@ export function DashboardPage() {
                 <Bar dataKey="meta" fill="#94a3b8" name="Meta" radius={[4, 4, 0, 0]}>
                   <LabelList dataKey="meta" position="top" fill="#64748b" fontSize={11} />
                 </Bar>
-                <Bar dataKey="agendados" fill="#10b981" name="Agendados" radius={[4, 4, 0, 0]}>
-                  <LabelList dataKey="agendados" position="top" fill="#059669" fontSize={11} />
+                <Bar
+                  dataKey={comparativoHub}
+                  fill={comparativoHubConfig[comparativoHub].color}
+                  name={comparativoHubConfig[comparativoHub].label}
+                  radius={[4, 4, 0, 0]}
+                >
+                  <LabelList
+                    dataKey={comparativoHub}
+                    position="top"
+                    fill={comparativoHubConfig[comparativoHub].labelColor}
+                    fontSize={11}
+                  />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

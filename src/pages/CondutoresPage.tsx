@@ -50,7 +50,12 @@ export function CondutoresPage() {
   const [importCidade, setImportCidade] = useState('');
   const [importHub, setImportHub] = useState('');
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null);
+  const [importResult, setImportResult] = useState<{
+    total: number;
+    imported: number;
+    updated: number;
+    errors: string[];
+  } | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -168,62 +173,88 @@ export function CondutoresPage() {
     loadData();
   };
 
-  // Parser para copia e cola (nome, CPF e telefone por linha)
-  // Aceita separadores: tab, vírgula, ponto e vírgula ou espaços
-  const parseImportText = (text: string): { nome: string; cpf: string; telefone: string }[] => {
-    const linhas = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    const resultados: { nome: string; cpf: string; telefone: string }[] = [];
+  const normalizarNome = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
+
+  const parseImportText = (text: string) => {
+    const linhas = text.replace(/\r/g, '').split('\n').filter((l) => l.trim());
+    const registros: Array<{
+      nome: string;
+      cpf: string;
+      telefone: string;
+      status: string;
+      observacoes: string;
+    }> = [];
+    const errors: string[] = [];
     const soDigitos = (s: string) => s.replace(/\D/g, '');
+    const limparTelefone = (s: string) => {
+      const digits = soDigitos(s);
+      return digits.length === 10 || digits.length === 11 ? digits : '';
+    };
 
-    for (const linha of linhas) {
-      // Remove linha de cabeçalho
-      if (/^(nome|name|cpf)/i.test(linha)) continue;
+    linhas.forEach((linha, index) => {
+      const linhaAtual = index + 1;
+      const texto = linha.trim();
+      const ehCabecalho =
+        /(cliente|nome|cpf|telefone|celular|tipo|consulta|ativo)/i.test(texto) &&
+        /(nome|cpf|telefone)/i.test(texto);
 
-      // Tenta separar por tab, vírgula, ponto e vírgula
-      let partes = linha.split(/\t|,|;/).map((p) => p.trim()).filter(Boolean);
+      if (ehCabecalho) return;
 
-      // Se só tem 1 parte, tenta separar por espaços (nome + CPF + telefone opcional)
-      if (partes.length === 1) {
-        const matchTelefone = linha.match(
-          /^(.+?)\s+(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\s+((?:\d{2}\s?)?\d{4,5}-?\d{4})$/
-        );
-        if (matchTelefone) {
-          partes = [matchTelefone[1].trim(), matchTelefone[2].trim(), matchTelefone[3].trim()];
-        } else {
-          const match = linha.match(/^(.+?)\s+(\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{11})$/);
-          if (match) partes = [match[1].trim(), match[2].trim()];
-        }
-      }
+      const partes = (texto.includes('\t') ? texto.split('\t') : texto.split(/;|,/))
+        .map((p) => p.trim());
 
       let nome = '';
       let cpf = '';
       let telefone = '';
+      let status = 'ativo';
+      let observacoes = '';
 
-      // 3+ colunas: nome, CPF, telefone
-      if (partes.length >= 3) {
-        const penultimo = soDigitos(partes[partes.length - 2]);
-        const ultimo = soDigitos(partes[partes.length - 1]);
-        if (penultimo.length === 11 && (ultimo.length === 10 || ultimo.length === 11)) {
-          cpf = penultimo;
-          telefone = ultimo;
-          nome = partes.slice(0, -2).join(' ').trim();
-        }
+      if (texto.includes('\t') && partes.length >= 3) {
+        nome = partes[2] || '';
+        cpf = soDigitos(partes[3] || '');
+        telefone = limparTelefone(partes[6] || partes[5] || '');
+        status = /inativo/i.test(partes[10] || partes[9] || '') ? 'inativo' : 'ativo';
+
+        const observacoesParts = [
+          partes[1] ? `Cliente: ${partes[1]}` : '',
+          partes[7] ? `Tipo: ${partes[7]}` : '',
+          partes[8] ? `Consulta: ${partes[8]}` : '',
+        ].filter(Boolean);
+        observacoes = observacoesParts.join(' | ');
+      } else if (partes.length >= 3) {
+        nome = partes[0] || '';
+        cpf = soDigitos(partes[1] || '');
+        telefone = limparTelefone(partes[2] || '');
+      } else if (partes.length === 2) {
+        nome = partes[0] || '';
+        cpf = soDigitos(partes[1] || '');
+      } else if (partes.length === 1) {
+        nome = partes[0] || '';
       }
 
-      // 2 colunas: nome, CPF
-      if (!cpf && partes.length >= 2) {
-        const ultimo = soDigitos(partes[partes.length - 1]);
-        if (ultimo.length === 11) {
-          cpf = ultimo;
-          nome = partes.slice(0, -1).join(' ').trim();
-        }
+      nome = nome.trim();
+      cpf = cpf.length === 11 ? cpf : '';
+
+      if (!nome) {
+        errors.push(`Linha ${linhaAtual}: nome não identificado.`);
+        return;
       }
 
-      if (nome && cpf.length === 11) {
-        resultados.push({ nome, cpf, telefone });
-      }
-    }
-    return resultados;
+      registros.push({
+        nome,
+        cpf,
+        telefone,
+        status,
+        observacoes,
+      });
+    });
+
+    return { total: linhas.length, registros, errors };
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -243,29 +274,86 @@ export function CondutoresPage() {
     setImportResult(null);
 
     const parsed = parseImportText(importText);
-    if (parsed.length === 0) {
-      setImportResult({ success: 0, errors: ['Nenhum registro válido encontrado. Use o formato: Nome, CPF por linha.'] });
+    if (parsed.registros.length === 0) {
+      setImportResult({
+        total: parsed.total,
+        imported: 0,
+        updated: 0,
+        errors: parsed.errors.length > 0
+          ? parsed.errors
+          : ['Nenhum registro válido encontrado. Você pode colar a planilha inteira do Excel.'],
+      });
       setImporting(false);
       return;
     }
 
-    const dados = parsed.map((p) => ({
-      nome_completo: p.nome,
-      cpf: p.cpf,
-      telefone: p.telefone || null,
-      cidade_id: importCidade || null,
-      hub_id: importHub || null,
-      status: 'ativo',
-    }));
+    const { data: existentesData } = await dbCondutores.list();
+    const existentes = (existentesData as Condutor[]) || [];
+    const existentesMap = new Map<string, Condutor>();
 
-    const { error } = await dbCondutores.bulkCreate(dados);
-    if (error) {
-      setImportResult({ success: 0, errors: [error.message] });
-    } else {
-      setImportResult({ success: parsed.length, errors: [] });
-      setImportText('');
-      loadData();
+    existentes.forEach((cd) => {
+      const key = `${normalizarNome(cd.nome_completo)}::${(cd.cpf || '').replace(/\D/g, '')}`;
+      existentesMap.set(key, cd);
+    });
+
+    let imported = 0;
+    let updated = 0;
+    const errors = [...parsed.errors];
+
+    for (const item of parsed.registros) {
+      const key = `${normalizarNome(item.nome)}::${item.cpf}`;
+      const existente = existentesMap.get(key);
+
+      if (existente) {
+        const updateData: Partial<Condutor> = {};
+
+        if (item.telefone && !existente.telefone) updateData.telefone = item.telefone;
+        if (importCidade && !existente.cidade_id) updateData.cidade_id = importCidade;
+        if (importHub && !existente.hub_id) updateData.hub_id = importHub;
+        if (item.observacoes && !existente.observacoes) updateData.observacoes = item.observacoes;
+        if (existente.status !== item.status) updateData.status = item.status;
+
+        if (Object.keys(updateData).length > 0) {
+          const { data: atualizado, error } = await dbCondutores.update(existente.id, updateData);
+          if (error) {
+            errors.push(`${item.nome}: ${error.message}`);
+            continue;
+          }
+          existentesMap.set(key, { ...existente, ...(atualizado as Condutor), ...updateData });
+          updated++;
+        }
+        continue;
+      }
+
+      const { data: criado, error } = await dbCondutores.create({
+        nome_completo: item.nome,
+        cpf: item.cpf || null,
+        telefone: item.telefone || null,
+        cidade_id: importCidade || null,
+        hub_id: importHub || null,
+        status: item.status || 'ativo',
+        observacoes: item.observacoes || null,
+      });
+
+      if (error) {
+        errors.push(`${item.nome}: ${error.message}`);
+        continue;
+      }
+
+      if (criado) {
+        existentesMap.set(key, criado as Condutor);
+        imported++;
+      }
     }
+
+    setImportResult({
+      total: parsed.total,
+      imported,
+      updated,
+      errors,
+    });
+    setImportText('');
+    loadData();
     setImporting(false);
   };
 
@@ -292,7 +380,7 @@ export function CondutoresPage() {
                   {selectionMode ? 'Cancelar' : 'Selecionar'}
                 </button>
                 <button className="btn-secondary" onClick={() => setImportOpen(true)}>
-                  <Upload size={16} /> Importar em lote
+                  <Upload size={16} /> Importar base
                 </button>
                 <button className="btn-primary" onClick={() => openModal()}>
                   <Plus size={16} /> Novo Condutor
@@ -542,11 +630,12 @@ export function CondutoresPage() {
       </Modal>
 
       {/* Modal Importação em Lote */}
-      <Modal open={importOpen} onClose={() => { setImportOpen(false); setImportResult(null); setImportText(''); }} title="Importar condutores em lote" size="lg">
+      <Modal open={importOpen} onClose={() => { setImportOpen(false); setImportResult(null); setImportText(''); }} title="Importar base de entregadores" size="lg">
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
             <p className="font-medium mb-1">Como usar:</p>
-            <p>Cole uma lista com <strong>Nome, CPF e Telefone</strong> por linha, separados por vírgula, tab, ponto e vírgula ou espaço. O telefone é opcional.</p>
+            <p>Você pode colar <strong>a planilha inteira do Excel</strong> aqui. O sistema tenta ler Nome, CPF, Telefone/Celular, Tipo, Consulta e Ativo.</p>
+            <p className="mt-1">Se não vier planilha completa, também aceita linhas simples com <strong>Nome, CPF e Telefone</strong>. Só o nome é obrigatório.</p>
             <p className="mt-1 text-xs text-blue-600">Exemplo: João da Silva, 123.456.789-00, (11) 91234-5678</p>
           </div>
 
@@ -581,23 +670,32 @@ export function CondutoresPage() {
               rows={10}
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
-              placeholder={`João da Silva, 123.456.789-00, (11) 91234-5678\nMaria Souza; 987.654.321-00; (21) 99876-5432\nPedro Santos\t456.789.123-00\t31988887777`}
+              placeholder={`ID\tCliente\tNome\tCPF\tSenha\tTelefone\tCelular\tTipo\tConsulta\tAtivo\n3E+05\tGFL - CR LOGISTICS\tJOAO DA SILVA\t12345678900\t123456\t(11)90000-0000\t(11)98888-7777\tAGREGADO\t25/05/2027\tAtivo`}
             />
           </div>
 
           {importResult && (
-            <div className={`p-3 rounded-lg text-sm ${importResult.success > 0 ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-              {importResult.success > 0
-                ? `✅ ${importResult.success} condutor(es) importado(s) com sucesso!`
-                : importResult.errors.map((e, i) => <p key={i}>❌ {e}</p>)}
+            <div className={`p-3 rounded-lg text-sm ${(importResult.imported > 0 || importResult.updated > 0) ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+              {(importResult.imported > 0 || importResult.updated > 0) ? (
+                <div className="space-y-1">
+                  <p>✅ {importResult.imported} condutor(es) novo(s) importado(s)</p>
+                  <p>🔄 {importResult.updated} condutor(es) já existentes atualizado(s)</p>
+                  <p className="text-xs">Total lido: {importResult.total}</p>
+                </div>
+              ) : null}
+              {importResult.errors.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {importResult.errors.map((e, i) => <p key={i}>❌ {e}</p>)}
+                </div>
+              )}
             </div>
           )}
 
           <div className="flex justify-end gap-2 pt-2">
             <button className="btn-secondary" onClick={() => { setImportOpen(false); setImportResult(null); setImportText(''); }}>
-              {importResult && importResult.success > 0 ? 'Fechar' : 'Cancelar'}
+              {importResult && (importResult.imported > 0 || importResult.updated > 0) ? 'Fechar' : 'Cancelar'}
             </button>
-            {(!importResult || importResult.success === 0) && (
+            {(!importResult || (importResult.imported === 0 && importResult.updated === 0)) && (
               <button className="btn-primary" onClick={handleImport} disabled={!importText.trim() || importing}>
                 {importing ? 'Importando...' : 'Importar'}
               </button>

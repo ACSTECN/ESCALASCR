@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload, Download, Square, CheckSquare, ArrowRightLeft } from 'lucide-react';
+import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload, Download, Square, CheckSquare, ArrowRightLeft, Search } from 'lucide-react';
 import type { Coleta, Condutor, Agendamento, StatusAgendamento } from '@/types';
 import { calcColetaStats, dbAgendamentos, dbCondutores, dbColetas } from '@/lib/db';
 import { formatDateBR, formatTime, getOccupancyColor, colorClasses, toCSV, downloadFile } from '@/utils';
@@ -47,6 +47,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
 
   const [condutores, setCondutores] = useState<Condutor[]>([]);
   const [selectedCondutor, setSelectedCondutor] = useState('');
+  const [condutorSearch, setCondutorSearch] = useState('');
   const [cancelTarget, setCancelTarget] = useState<Agendamento | null>(null);
   const [loading, setLoading] = useState(false);
   const [editingMeta, setEditingMeta] = useState(false);
@@ -90,6 +91,8 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
       dbCondutores.listAtivos().then(({ data }) => setCondutores((data as Condutor[]) || []));
       setEditingMeta(false);
       setSelectedIds(new Set());
+      setCondutorSearch('');
+      setSelectedCondutor('');
     }
   }, [coleta]);
 
@@ -385,6 +388,17 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     ? agendamentosAtivos.filter((a) => a.status === filtroStatus)
     : agendamentosAtivos;
 
+  const condutoresDisponiveis = condutores
+    .filter((cd) => !coleta.agendamentos?.some((a) => a.condutor_id === cd.id && a.status !== 'cancelado'))
+    .filter((cd) => {
+      if (!condutorSearch.trim()) return true;
+      const termo = condutorSearch.toLowerCase();
+      const cpf = (cd.cpf || '').replace(/\D/g, '');
+      const telefone = (cd.telefone || '').replace(/\D/g, '');
+      const haystack = `${cd.nome_completo} ${cd.cpf || ''} ${cpf} ${cd.telefone || ''} ${telefone} ${cd.observacoes || ''}`.toLowerCase();
+      return haystack.includes(termo);
+    });
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -660,6 +674,18 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
             {canEdit && (
               <div className="px-6 py-4">
                 <label className="label">Agendar condutor</label>
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <input
+                    className="input pl-9"
+                    value={condutorSearch}
+                    onChange={(e) => setCondutorSearch(e.target.value)}
+                    placeholder="Pesquisar por nome, CPF, telefone ou observação..."
+                  />
+                </div>
+                <div className="mb-2 text-xs text-slate-500">
+                  {condutoresDisponiveis.length} condutor(es) disponível(is) na base
+                </div>
                 <div className="flex gap-2 mb-2">
                   <select
                     className="input min-w-0"
@@ -667,10 +693,14 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
                     onChange={(e) => setSelectedCondutor(e.target.value)}
                   >
                     <option value="">Selecione um condutor...</option>
-                    {condutores
-                      .filter((cd) => !coleta.agendamentos?.some((a) => a.condutor_id === cd.id && a.status !== 'cancelado'))
+                    {condutoresDisponiveis
+                      .slice(0, 200)
                       .map((cd) => (
-                        <option key={cd.id} value={cd.id}>{cd.nome_completo}</option>
+                        <option key={cd.id} value={cd.id}>
+                          {cd.nome_completo}
+                          {cd.cpf ? ` • ${cd.cpf}` : ''}
+                          {cd.telefone ? ` • ${cd.telefone}` : ''}
+                        </option>
                       ))}
                   </select>
                   <button className="btn-primary flex-shrink-0 min-w-[52px]" onClick={agendar} disabled={!selectedCondutor || loading}>
