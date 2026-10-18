@@ -518,6 +518,8 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
       'Condutor': a.condutor?.nome_completo || '',
       'CPF': a.condutor?.cpf || '',
       'Telefone': a.condutor?.telefone || '',
+      'Integração': a.condutor?.fez_integracao ? 'Sim' : 'Não',
+      'Observação': a.condutor?.observacoes || '',
       'Status': STATUS_AGENDAMENTO_LABELS[a.status],
       'HUB': coleta.hub?.sigla || '',
       'Data': formatDateBR(coleta.data_coleta),
@@ -793,11 +795,27 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
                       {ag.condutor?.nome_completo.charAt(0)}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm md:text-base font-medium text-slate-800 truncate">{ag.condutor?.nome_completo}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm md:text-base font-medium text-slate-800 truncate">{ag.condutor?.nome_completo}</span>
+                        <span
+                          className={`badge ${
+                            ag.condutor?.fez_integracao
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {ag.condutor?.fez_integracao ? 'Integração' : 'Sem integração'}
+                        </span>
+                      </div>
                       <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2">
                         <span>{ag.condutor?.telefone || 'Sem telefone'}</span>
                         {canEdit && <span className={`badge ${statusColor[ag.status]}`}>{STATUS_AGENDAMENTO_LABELS[ag.status]}</span>}
                       </div>
+                      {ag.condutor?.observacoes && (
+                        <div className="mt-1 text-xs italic text-slate-500 break-words">
+                          Obs.: {ag.condutor.observacoes}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 self-end md:self-auto">

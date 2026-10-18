@@ -105,30 +105,30 @@ export function CalendarioPage() {
         }
       />
 
-      <div className="tech-panel tech-grid relative mb-5 overflow-hidden p-5 text-white">
+      <div className="tech-panel tech-grid relative mb-5 overflow-hidden p-5 text-slate-900">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(37,99,235,0.18),_transparent_32%)]" />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <BrandLogo compact light subtitle="Painel Semanal" />
-            <h2 className="mt-4 text-2xl font-black tracking-[0.08em]">
+            <BrandLogo compact subtitle="Painel Semanal" />
+            <h2 className="mt-4 text-2xl font-black tracking-[0.08em] text-slate-950">
               Controle visual de escala com leitura rapida de ocupacao.
             </h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-300">
+            <p className="mt-2 max-w-2xl text-sm text-slate-600">
               A semana fica toda visivel, com filtros e acompanhamento direto de HUB, metas e agendamentos.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-3xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
-              <div className="text-xs uppercase tracking-[0.24em] text-cyan-100/70">Coletas</div>
-              <div className="mt-2 text-2xl font-black">{coletasFiltradas.length}</div>
+            <div className="rounded-3xl border border-slate-200/80 bg-white/75 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur">
+              <div className="text-xs uppercase tracking-[0.24em] text-cyan-700">Coletas</div>
+              <div className="mt-2 text-2xl font-black text-slate-950">{coletasFiltradas.length}</div>
             </div>
-            <div className="rounded-3xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
-              <div className="text-xs uppercase tracking-[0.24em] text-cyan-100/70">HUBs</div>
-              <div className="mt-2 text-2xl font-black">{new Set(coletasFiltradas.map((c) => c.hub_id)).size}</div>
+            <div className="rounded-3xl border border-slate-200/80 bg-white/75 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur">
+              <div className="text-xs uppercase tracking-[0.24em] text-cyan-700">HUBs</div>
+              <div className="mt-2 text-2xl font-black text-slate-950">{new Set(coletasFiltradas.map((c) => c.hub_id)).size}</div>
             </div>
-            <div className="rounded-3xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
-              <div className="text-xs uppercase tracking-[0.24em] text-cyan-100/70">Abaixo meta</div>
-              <div className="mt-2 text-2xl font-black">{abaixoMeta.length}</div>
+            <div className="rounded-3xl border border-slate-200/80 bg-white/75 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur">
+              <div className="text-xs uppercase tracking-[0.24em] text-cyan-700">Abaixo meta</div>
+              <div className="mt-2 text-2xl font-black text-slate-950">{abaixoMeta.length}</div>
             </div>
           </div>
         </div>
