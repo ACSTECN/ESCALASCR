@@ -224,6 +224,7 @@ export function CondutoresPage() {
           partes[1] ? `Cliente: ${partes[1]}` : '',
           partes[7] ? `Tipo: ${partes[7]}` : '',
           partes[8] ? `Consulta: ${partes[8]}` : '',
+          partes[12] ? `Situação cadastro: ${partes[12]}` : '',
         ].filter(Boolean);
         observacoes = observacoesParts.join(' | ');
       } else if (partes.length >= 3) {
