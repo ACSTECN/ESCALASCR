@@ -76,6 +76,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<StatusAgendamento>('agendado');
   const [confirmBulkRemove, setConfirmBulkRemove] = useState(false);
+  const [updatingIntegrationId, setUpdatingIntegrationId] = useState<string | null>(null);
 
   // Transferência de escala (mover selecionados para outro dia)
   const [transferOpen, setTransferOpen] = useState(false);
@@ -154,6 +155,30 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     } else {
       await dbAgendamentos.updateStatus(ag.id, status);
     }
+    onUpdated();
+  };
+
+  const atualizarObservacaoIntegracao = (observacoes: string | null | undefined, fezIntegracao: boolean) => {
+    const partes = (observacoes || '')
+      .split('|')
+      .map((parte) => parte.trim())
+      .filter(Boolean)
+      .filter((parte) => !/^integração:/i.test(parte) && !/^integracao:/i.test(parte));
+
+    partes.unshift(`Integração: ${fezIntegracao ? 'Sim' : 'Não'}`);
+    return partes.join(' | ');
+  };
+
+  const alterarIntegracao = async (ag: Agendamento, value: 'sim' | 'nao') => {
+    if (!ag.condutor?.id) return;
+
+    setUpdatingIntegrationId(ag.id);
+    const fezIntegracao = value === 'sim';
+    await dbCondutores.update(ag.condutor.id, {
+      fez_integracao: fezIntegracao,
+      observacoes: atualizarObservacaoIntegracao(ag.condutor.observacoes, fezIntegracao),
+    });
+    setUpdatingIntegrationId(null);
     onUpdated();
   };
 
@@ -850,15 +875,26 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 self-end md:self-auto">
                     {canEdit ? (
-                      <select
-                        value={ag.status}
-                        onChange={(e) => alterarStatus(ag, e.target.value as StatusAgendamento)}
-                        className="text-xs border border-slate-200 rounded-lg px-2 py-2 bg-white min-w-[140px]"
-                      >
-                        {Object.entries(STATUS_AGENDAMENTO_LABELS).map(([k, v]) => (
-                          <option key={k} value={k}>{v}</option>
-                        ))}
-                      </select>
+                      <div className="flex flex-col gap-2 md:items-end">
+                        <select
+                          value={ag.condutor?.fez_integracao ? 'sim' : 'nao'}
+                          onChange={(e) => alterarIntegracao(ag, e.target.value as 'sim' | 'nao')}
+                          disabled={updatingIntegrationId === ag.id}
+                          className="text-xs border border-amber-200 rounded-lg px-2 py-2 bg-amber-50 text-amber-800 min-w-[140px]"
+                        >
+                          <option value="nao">Sem integração</option>
+                          <option value="sim">Com integração</option>
+                        </select>
+                        <select
+                          value={ag.status}
+                          onChange={(e) => alterarStatus(ag, e.target.value as StatusAgendamento)}
+                          className="text-xs border border-slate-200 rounded-lg px-2 py-2 bg-white min-w-[140px]"
+                        >
+                          {Object.entries(STATUS_AGENDAMENTO_LABELS).map(([k, v]) => (
+                            <option key={k} value={k}>{v}</option>
+                          ))}
+                        </select>
+                      </div>
                     ) : (
                       <span className={`badge ${statusColor[ag.status]}`}>{STATUS_AGENDAMENTO_LABELS[ag.status]}</span>
                     )}
