@@ -134,16 +134,18 @@ export const downloadFile = (
 export const toCSV = (rows: Record<string, unknown>[]): string => {
   if (rows.length === 0) return '';
   const headers = Object.keys(rows[0]);
+  const separator = ';';
   const escape = (v: unknown) => {
     const s = String(v ?? '');
-    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    if (s.includes(separator) || s.includes('"') || s.includes('\n')) {
       return '"' + s.replace(/"/g, '""') + '"';
     }
     return s;
   };
   const csv = [
-    headers.join(','),
-    ...rows.map((r) => headers.map((h) => escape(r[h])).join(',')),
+    `sep=${separator}`,
+    headers.map((h) => escape(h)).join(separator),
+    ...rows.map((r) => headers.map((h) => escape(r[h])).join(separator)),
   ];
   return csv.join('\n');
 };

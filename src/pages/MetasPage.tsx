@@ -92,7 +92,7 @@ export function MetasPage() {
         (m) => m.hub_id === form.hub_id && m.dia_semana === diaSelecionado && m.id !== editing.id
       );
 
-      await dbColetas.removeByMetaCriteriaInRange(
+      await dbColetas.removeEmptyByMetaCriteriaInRange(
         editing.hub_id,
         editing.dia_semana,
         editing.horario,
@@ -101,7 +101,7 @@ export function MetasPage() {
       );
 
       if (metaConflitante) {
-        await dbColetas.removeByMetaCriteriaInRange(
+        await dbColetas.removeEmptyByMetaCriteriaInRange(
           metaConflitante.hub_id,
           metaConflitante.dia_semana,
           metaConflitante.horario,
@@ -117,7 +117,7 @@ export function MetasPage() {
       for (const dia of diasSelecionados) {
         const metaExistente = metas.find((m) => m.hub_id === form.hub_id && m.dia_semana === dia);
         if (metaExistente) {
-          await dbColetas.removeByMetaCriteriaInRange(
+          await dbColetas.removeEmptyByMetaCriteriaInRange(
             metaExistente.hub_id,
             metaExistente.dia_semana,
             metaExistente.horario,

@@ -160,15 +160,21 @@ export function DashboardPage() {
       cur.ausente += (c.agendamentos || []).filter((a) => a.status === 'ausente').length;
       map.set(sigla, cur);
     }
-    return Array.from(map.entries()).map(([hub, v]) => ({
-      hub,
-      meta: v.meta,
-      agendados: v.agendados,
-      confirmados: v.confirmados,
-      compareceu: v.compareceu,
-      ausente: v.ausente,
-    }));
-  }, [coletas]);
+    return Array.from(map.entries())
+      .map(([hub, v]) => ({
+        hub,
+        meta: v.meta,
+        agendados: v.agendados,
+        confirmados: v.confirmados,
+        compareceu: v.compareceu,
+        ausente: v.ausente,
+      }))
+      .sort((a, b) => {
+        const comparativo = b[comparativoHub] - a[comparativoHub];
+        if (comparativo !== 0) return comparativo;
+        return b.meta - a.meta;
+      });
+  }, [coletas, comparativoHub]);
 
   const comparativoHubConfig: Record<
     'agendados' | 'confirmados' | 'compareceu' | 'ausente',

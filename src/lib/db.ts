@@ -187,6 +187,36 @@ export const dbColetas = {
 
     return supabase.from('coletas').delete().in('id', idsParaRemover);
   },
+
+  removeEmptyByMetaCriteriaInRange: async (
+    hubId: string,
+    diaSemana: number,
+    horario: string,
+    startDate: string,
+    endDate: string
+  ) => {
+    const { data: coletas } = await supabase
+      .from('coletas')
+      .select('id, data_coleta, agendamentos:agendamentos(id)')
+      .eq('hub_id', hubId)
+      .eq('horario', horario)
+      .gte('data_coleta', startDate)
+      .lte('data_coleta', endDate);
+
+    if (!coletas || coletas.length === 0) return { error: null };
+
+    const idsParaRemover = coletas
+      .filter((c) => {
+        const dow = new Date(c.data_coleta).getDay();
+        const semAgendamentos = !c.agendamentos || c.agendamentos.length === 0;
+        return dow === diaSemana && semAgendamentos;
+      })
+      .map((c) => c.id);
+
+    if (idsParaRemover.length === 0) return { error: null };
+
+    return supabase.from('coletas').delete().in('id', idsParaRemover);
+  },
 };
 
 // ============================================================
