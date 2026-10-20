@@ -918,7 +918,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         onClose={() => setCancelTarget(null)}
         onConfirm={confirmarCancelamento}
         title="Remover agendamento"
-        message={`Deseja remover o agendamento de ${cancelTarget?.condutor?.nome_completo}? A vaga será liberada.`}
+        message={`Cuidado: deseja remover manualmente o agendamento de ${cancelTarget?.condutor?.nome_completo}? A vaga será liberada.`}
         confirmLabel="Remover agendamento"
       />
 
@@ -927,7 +927,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         onClose={() => setDeleteColeta(false)}
         onConfirm={excluirColeta}
         title="Excluir coleta"
-        message={`Deseja excluir a coleta ${coleta?.hub?.sigla} de ${coleta ? formatDateBR(coleta.data_coleta) : ''} às ${coleta ? formatTime(coleta.horario) : ''}? Todos os agendamentos desta coleta também serão removidos.`}
+        message={`Cuidado: deseja excluir manualmente a coleta ${coleta?.hub?.sigla} de ${coleta ? formatDateBR(coleta.data_coleta) : ''} às ${coleta ? formatTime(coleta.horario) : ''}? Todos os agendamentos desta coleta também serão removidos.`}
         confirmLabel="Excluir coleta"
       />
 
@@ -936,7 +936,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
         onClose={() => setConfirmBulkRemove(false)}
         onConfirm={removerSelecionados}
         title="Remover agendamentos selecionados"
-        message={`Deseja remover ${selectedIds.size} agendamento(s) selecionado(s)? Essa ação libera as vagas desta coleta.`}
+        message={`Cuidado: deseja remover manualmente ${selectedIds.size} agendamento(s) selecionado(s)? Essa ação libera as vagas desta coleta.`}
         confirmLabel="Remover selecionados"
       />
 

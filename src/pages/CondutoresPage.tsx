@@ -177,8 +177,16 @@ export function CondutoresPage() {
     value
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
+
+  const nomePrimeiroSegundo = (value: string) =>
+    normalizarNome(value)
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(' ');
 
   const parseImportText = (text: string) => {
     const linhas = text.replace(/\r/g, '').split('\n').filter((l) => l.trim());
@@ -195,6 +203,40 @@ export function CondutoresPage() {
       const digits = soDigitos(s);
       return digits.length === 10 || digits.length === 11 ? digits : '';
     };
+    const normalizarCabecalho = (s: string) =>
+      normalizarNome(s).replace(/[^a-z0-9 ]/g, '');
+    const aliases: Record<string, string[]> = {
+      nome: ['nome'],
+      cpf: ['cpf'],
+      telefone: ['telefone'],
+      celular: ['celular'],
+      cliente: ['cliente'],
+      tipo: ['tipo'],
+      consulta: ['consulta'],
+      ativo: ['ativo', 'status'],
+      situacaoCadastro: ['situacao cadastro', 'situacao cadastr'],
+    };
+    const findHeaderIndex = (headers: string[], accepted: string[]) =>
+      headers.findIndex((header) => accepted.some((alias) => header.includes(alias)));
+
+    let headerIndexes: Record<string, number> | null = null;
+    if (linhas.length > 0 && linhas[0].includes('\t')) {
+      const headers = linhas[0].split('\t').map((p) => normalizarCabecalho(p.trim()));
+      const nomeIndex = findHeaderIndex(headers, aliases.nome);
+      if (nomeIndex >= 0) {
+        headerIndexes = {
+          nome: nomeIndex,
+          cpf: findHeaderIndex(headers, aliases.cpf),
+          telefone: findHeaderIndex(headers, aliases.telefone),
+          celular: findHeaderIndex(headers, aliases.celular),
+          cliente: findHeaderIndex(headers, aliases.cliente),
+          tipo: findHeaderIndex(headers, aliases.tipo),
+          consulta: findHeaderIndex(headers, aliases.consulta),
+          ativo: findHeaderIndex(headers, aliases.ativo),
+          situacaoCadastro: findHeaderIndex(headers, aliases.situacaoCadastro),
+        };
+      }
+    }
 
     linhas.forEach((linha, index) => {
       const linhaAtual = index + 1;
@@ -203,7 +245,7 @@ export function CondutoresPage() {
         /(cliente|nome|cpf|telefone|celular|tipo|consulta|ativo)/i.test(texto) &&
         /(nome|cpf|telefone)/i.test(texto);
 
-      if (ehCabecalho) return;
+      if (ehCabecalho && index === 0) return;
 
       const partes = (texto.includes('\t') ? texto.split('\t') : texto.split(/;|,/))
         .map((p) => p.trim());
@@ -215,18 +257,38 @@ export function CondutoresPage() {
       let observacoes = '';
 
       if (texto.includes('\t') && partes.length >= 3) {
-        nome = partes[2] || '';
-        cpf = soDigitos(partes[3] || '');
-        telefone = limparTelefone(partes[6] || partes[5] || '');
-        status = /inativo/i.test(partes[10] || partes[9] || '') ? 'inativo' : 'ativo';
+        const getByIndex = (columnIndex: number) =>
+          columnIndex >= 0 ? partes[columnIndex] || '' : '';
 
-        const observacoesParts = [
-          partes[1] ? `Cliente: ${partes[1]}` : '',
-          partes[7] ? `Tipo: ${partes[7]}` : '',
-          partes[8] ? `Consulta: ${partes[8]}` : '',
-          partes[12] ? `Situação cadastro: ${partes[12]}` : '',
-        ].filter(Boolean);
-        observacoes = observacoesParts.join(' | ');
+        if (headerIndexes) {
+          nome = getByIndex(headerIndexes.nome);
+          cpf = soDigitos(getByIndex(headerIndexes.cpf));
+          telefone = limparTelefone(getByIndex(headerIndexes.celular) || getByIndex(headerIndexes.telefone));
+          status = /inativo/i.test(getByIndex(headerIndexes.ativo)) ? 'inativo' : 'ativo';
+
+          const observacoesParts = [
+            getByIndex(headerIndexes.cliente) ? `Cliente: ${getByIndex(headerIndexes.cliente)}` : '',
+            getByIndex(headerIndexes.tipo) ? `Tipo: ${getByIndex(headerIndexes.tipo)}` : '',
+            getByIndex(headerIndexes.consulta) ? `Consulta: ${getByIndex(headerIndexes.consulta)}` : '',
+            getByIndex(headerIndexes.situacaoCadastro)
+              ? `Situação cadastro: ${getByIndex(headerIndexes.situacaoCadastro)}`
+              : '',
+          ].filter(Boolean);
+          observacoes = observacoesParts.join(' | ');
+        } else {
+          nome = partes[2] || '';
+          cpf = soDigitos(partes[3] || '');
+          telefone = limparTelefone(partes[6] || partes[5] || '');
+          status = /inativo/i.test(partes[10] || partes[9] || '') ? 'inativo' : 'ativo';
+
+          const observacoesParts = [
+            partes[1] ? `Cliente: ${partes[1]}` : '',
+            partes[7] ? `Tipo: ${partes[7]}` : '',
+            partes[8] ? `Consulta: ${partes[8]}` : '',
+            partes[12] ? `Situação cadastro: ${partes[12]}` : '',
+          ].filter(Boolean);
+          observacoes = observacoesParts.join(' | ');
+        }
       } else if (partes.length >= 3) {
         nome = partes[0] || '';
         cpf = soDigitos(partes[1] || '');
@@ -291,11 +353,28 @@ export function CondutoresPage() {
     const { data: existentesData } = await dbCondutores.list();
     const existentes = (existentesData as Condutor[]) || [];
     const existentesMap = new Map<string, Condutor>();
+    const existentesPorNome = new Map<string, Condutor>();
+    const existentesPorCpf = new Map<string, Condutor>();
+    const existentesPorNomeCurto = new Map<string, Condutor[]>();
 
-    existentes.forEach((cd) => {
-      const key = `${normalizarNome(cd.nome_completo)}::${(cd.cpf || '').replace(/\D/g, '')}`;
-      existentesMap.set(key, cd);
-    });
+    const registrarCondutor = (cd: Condutor) => {
+      const nomeNormalizado = normalizarNome(cd.nome_completo || '');
+      const cpfNormalizado = (cd.cpf || '').replace(/\D/g, '');
+      const nomeCurto = nomePrimeiroSegundo(cd.nome_completo || '');
+
+      existentesMap.set(`${nomeNormalizado}::${cpfNormalizado}`, cd);
+      if (nomeNormalizado) existentesPorNome.set(nomeNormalizado, cd);
+      if (cpfNormalizado) existentesPorCpf.set(cpfNormalizado, cd);
+      if (nomeCurto) {
+        const lista = existentesPorNomeCurto.get(nomeCurto) || [];
+        if (!lista.some((item) => item.id === cd.id)) {
+          lista.push(cd);
+          existentesPorNomeCurto.set(nomeCurto, lista);
+        }
+      }
+    };
+
+    existentes.forEach(registrarCondutor);
 
     let imported = 0;
     let updated = 0;
@@ -303,11 +382,33 @@ export function CondutoresPage() {
 
     for (const item of parsed.registros) {
       const key = `${normalizarNome(item.nome)}::${item.cpf}`;
-      const existente = existentesMap.get(key);
+      const nomeNormalizado = normalizarNome(item.nome);
+      const nomeCurto = nomePrimeiroSegundo(item.nome);
+
+      let existente = existentesMap.get(key);
+
+      if (!existente && item.cpf) {
+        existente = existentesPorCpf.get(item.cpf);
+      }
+
+      if (!existente) {
+        existente = existentesPorNome.get(nomeNormalizado);
+      }
+
+      if (!existente && nomeCurto) {
+        const candidatos = (existentesPorNomeCurto.get(nomeCurto) || []).filter(Boolean);
+        if (candidatos.length === 1) {
+          existente = candidatos[0];
+        } else if (candidatos.length > 1) {
+          errors.push(`${item.nome}: duplicidade potencial por primeiro e segundo nome. Revise manualmente.`);
+          continue;
+        }
+      }
 
       if (existente) {
         const updateData: Partial<Condutor> = {};
 
+        if (item.cpf && !existente.cpf) updateData.cpf = item.cpf;
         if (item.telefone && !existente.telefone) updateData.telefone = item.telefone;
         if (importCidade && !existente.cidade_id) updateData.cidade_id = importCidade;
         if (importHub && !existente.hub_id) updateData.hub_id = importHub;
@@ -320,7 +421,7 @@ export function CondutoresPage() {
             errors.push(`${item.nome}: ${error.message}`);
             continue;
           }
-          existentesMap.set(key, { ...existente, ...(atualizado as Condutor), ...updateData });
+          registrarCondutor({ ...existente, ...(atualizado as Condutor), ...updateData });
           updated++;
         }
         continue;
@@ -342,7 +443,7 @@ export function CondutoresPage() {
       }
 
       if (criado) {
-        existentesMap.set(key, criado as Condutor);
+        registrarCondutor(criado as Condutor);
         imported++;
       }
     }
@@ -635,8 +736,9 @@ export function CondutoresPage() {
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
             <p className="font-medium mb-1">Como usar:</p>
-            <p>Você pode colar <strong>a planilha inteira do Excel</strong> aqui. O sistema tenta ler Nome, CPF, Telefone/Celular, Tipo, Consulta e Ativo.</p>
+            <p>Você pode colar <strong>a planilha inteira do Excel</strong> aqui. O sistema identifica as colunas pelo cabeçalho e tenta ler Nome, CPF, Telefone/Celular, Tipo, Consulta, Ativo e Situação Cadastro.</p>
             <p className="mt-1">Se não vier planilha completa, também aceita linhas simples com <strong>Nome, CPF e Telefone</strong>. Só o nome é obrigatório.</p>
+            <p className="mt-1">Duplicidade é verificada por <strong>CPF</strong>, <strong>nome completo</strong> e também por <strong>primeiro + segundo nome</strong>.</p>
             <p className="mt-1 text-xs text-blue-600">Exemplo: João da Silva, 123.456.789-00, (11) 91234-5678</p>
           </div>
 
@@ -710,7 +812,7 @@ export function CondutoresPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Excluir condutor"
-        message={`Deseja excluir ${deleteTarget?.nome_completo}?`}
+        message={`Cuidado: deseja excluir ${deleteTarget?.nome_completo}? Essa exclusão é manual e definitiva.`}
         confirmLabel="Excluir"
         loading={deleting}
       />
@@ -720,7 +822,7 @@ export function CondutoresPage() {
         onClose={() => setConfirmDeleteAll(false)}
         onConfirm={deleteSelected}
         title="Excluir condutores"
-        message={`Deseja excluir ${selectedIds.size} condutor(es) selecionado(s)?`}
+        message={`Cuidado: deseja excluir ${selectedIds.size} condutor(es) selecionado(s)? Essa exclusão é manual e definitiva.`}
         confirmLabel="Excluir todos"
         loading={deleting}
       />
