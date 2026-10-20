@@ -43,6 +43,7 @@ export function CondutoresPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
 
   // Importação em lote
   const [importOpen, setImportOpen] = useState(false);
@@ -56,6 +57,16 @@ export function CondutoresPage() {
     updated: number;
     errors: string[];
   } | null>(null);
+  const [importMapping, setImportMapping] = useState({
+    nome: '',
+    cpf: '',
+    telefone: '',
+    cliente: '',
+    tipo: '',
+    consulta: '',
+    ativo: '',
+    situacaoCadastro: '',
+  });
 
   const loadData = async () => {
     setLoading(true);
@@ -138,13 +149,27 @@ export function CondutoresPage() {
     loadData();
   };
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = (id: string, index?: number, shiftKey = false) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
+
+      if (shiftKey && lastSelectedIndex !== null && index !== undefined) {
+        const start = Math.min(lastSelectedIndex, index);
+        const end = Math.max(lastSelectedIndex, index);
+        for (let i = start; i <= end; i++) {
+          next.add(condutoresFiltrados[i].id);
+        }
+        return next;
+      }
+
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+
+    if (index !== undefined) {
+      setLastSelectedIndex(index);
+    }
   };
 
   const selectAll = () => {
@@ -158,6 +183,7 @@ export function CondutoresPage() {
   const exitSelectionMode = () => {
     setSelectionMode(false);
     setSelectedIds(new Set());
+    setLastSelectedIndex(null);
   };
 
   const deleteSelected = async () => {
@@ -188,8 +214,141 @@ export function CondutoresPage() {
       .slice(0, 2)
       .join(' ');
 
-  const parseImportText = (text: string) => {
+  const parseDelimitedLine = (line: string, delimiter: string) => {
+    if (delimiter === '\t') return line.split('\t').map((part) => part.trim());
+
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+
+      if (char === delimiter && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+        continue;
+      }
+
+      current += char;
+    }
+
+    result.push(current.trim());
+    return result;
+  };
+
+  const parseImportSource = (text: string) => {
     const linhas = text.replace(/\r/g, '').split('\n').filter((l) => l.trim());
+    if (linhas.length === 0) {
+      return {
+        rows: [] as string[][],
+        dataRows: [] as string[][],
+        headers: [] as string[],
+        hasHeader: false,
+        autoMapping: {
+          nome: '',
+          cpf: '',
+          telefone: '',
+          cliente: '',
+          tipo: '',
+          consulta: '',
+          ativo: '',
+          situacaoCadastro: '',
+        },
+      };
+    }
+
+    const sampleLine = linhas.find((linha) => linha.trim()) || '';
+    const delimiter = sampleLine.includes('\t') ? '\t' : sampleLine.includes(';') ? ';' : ',';
+    const rows = linhas.map((linha) => parseDelimitedLine(linha, delimiter));
+    const normalizarCabecalho = (s: string) => normalizarNome(s).replace(/[^a-z0-9 ]/g, '');
+    const aliases: Record<string, string[]> = {
+      nome: ['nome'],
+      cpf: ['cpf'],
+      telefone: ['telefone', 'fone'],
+      cliente: ['cliente'],
+      tipo: ['tipo'],
+      consulta: ['consulta'],
+      ativo: ['ativo', 'status'],
+      situacaoCadastro: ['situacao cadastro', 'situacao cadastr'],
+    };
+
+    const firstRow = rows[0] || [];
+    const normalizedHeaders = firstRow.map((value) => normalizarCabecalho(value));
+    const hasHeader = normalizedHeaders.some((header) =>
+      Object.values(aliases).some((group) => group.some((alias) => header.includes(alias)))
+    );
+    const findHeaderIndex = (accepted: string[]) =>
+      normalizedHeaders.findIndex((header) => accepted.some((alias) => header.includes(alias)));
+
+    const defaultExcelMapping = rows[0]?.length >= 8
+      ? {
+          nome: '2',
+          cpf: '3',
+          telefone: rows[0]?.length > 6 ? '6' : '5',
+          cliente: '1',
+          tipo: rows[0]?.length > 7 ? '7' : '',
+          consulta: rows[0]?.length > 8 ? '8' : '',
+          ativo: rows[0]?.length > 10 ? '10' : rows[0]?.length > 9 ? '9' : '',
+          situacaoCadastro: rows[0]?.length > 12 ? '12' : '',
+        }
+      : {
+          nome: '0',
+          cpf: rows[0]?.length > 1 ? '1' : '',
+          telefone: rows[0]?.length > 2 ? '2' : '',
+          cliente: '',
+          tipo: '',
+          consulta: '',
+          ativo: '',
+          situacaoCadastro: '',
+        };
+
+    const autoMapping = hasHeader
+      ? {
+          nome: String(findHeaderIndex(aliases.nome)),
+          cpf: String(findHeaderIndex(aliases.cpf)),
+          telefone: String(findHeaderIndex(aliases.telefone)),
+          cliente: String(findHeaderIndex(aliases.cliente)),
+          tipo: String(findHeaderIndex(aliases.tipo)),
+          consulta: String(findHeaderIndex(aliases.consulta)),
+          ativo: String(findHeaderIndex(aliases.ativo)),
+          situacaoCadastro: String(findHeaderIndex(aliases.situacaoCadastro)),
+        }
+      : defaultExcelMapping;
+
+    return {
+      rows,
+      dataRows: hasHeader ? rows.slice(1) : rows,
+      headers: hasHeader
+        ? firstRow
+        : (rows[0] || []).map((_, index) => `Coluna ${String.fromCharCode(65 + index)}`),
+      hasHeader,
+      autoMapping: Object.fromEntries(
+        Object.entries(autoMapping).map(([key, value]) => [key, value === '-1' ? '' : value])
+      ) as typeof importMapping,
+    };
+  };
+
+  const importPreview = useMemo(() => parseImportSource(importText), [importText]);
+
+  useEffect(() => {
+    setImportMapping(importPreview.autoMapping);
+    setImportResult(null);
+  }, [importPreview.autoMapping]);
+
+  const parseImportText = () => {
+    const linhas = importPreview.dataRows;
     const registros: Array<{
       nome: string;
       cpf: string;
@@ -203,52 +362,16 @@ export function CondutoresPage() {
       const digits = soDigitos(s);
       return digits.length === 10 || digits.length === 11 ? digits : '';
     };
-    const normalizarCabecalho = (s: string) =>
-      normalizarNome(s).replace(/[^a-z0-9 ]/g, '');
-    const aliases: Record<string, string[]> = {
-      nome: ['nome'],
-      cpf: ['cpf'],
-      telefone: ['telefone'],
-      celular: ['celular'],
-      cliente: ['cliente'],
-      tipo: ['tipo'],
-      consulta: ['consulta'],
-      ativo: ['ativo', 'status'],
-      situacaoCadastro: ['situacao cadastro', 'situacao cadastr'],
+
+    const getByMap = (row: string[], key: keyof typeof importMapping) => {
+      const value = importMapping[key];
+      if (value === '') return '';
+      const index = Number(value);
+      return Number.isNaN(index) ? '' : row[index] || '';
     };
-    const findHeaderIndex = (headers: string[], accepted: string[]) =>
-      headers.findIndex((header) => accepted.some((alias) => header.includes(alias)));
 
-    let headerIndexes: Record<string, number> | null = null;
-    if (linhas.length > 0 && linhas[0].includes('\t')) {
-      const headers = linhas[0].split('\t').map((p) => normalizarCabecalho(p.trim()));
-      const nomeIndex = findHeaderIndex(headers, aliases.nome);
-      if (nomeIndex >= 0) {
-        headerIndexes = {
-          nome: nomeIndex,
-          cpf: findHeaderIndex(headers, aliases.cpf),
-          telefone: findHeaderIndex(headers, aliases.telefone),
-          celular: findHeaderIndex(headers, aliases.celular),
-          cliente: findHeaderIndex(headers, aliases.cliente),
-          tipo: findHeaderIndex(headers, aliases.tipo),
-          consulta: findHeaderIndex(headers, aliases.consulta),
-          ativo: findHeaderIndex(headers, aliases.ativo),
-          situacaoCadastro: findHeaderIndex(headers, aliases.situacaoCadastro),
-        };
-      }
-    }
-
-    linhas.forEach((linha, index) => {
+    linhas.forEach((partes, index) => {
       const linhaAtual = index + 1;
-      const texto = linha.trim();
-      const ehCabecalho =
-        /(cliente|nome|cpf|telefone|celular|tipo|consulta|ativo)/i.test(texto) &&
-        /(nome|cpf|telefone)/i.test(texto);
-
-      if (ehCabecalho && index === 0) return;
-
-      const partes = (texto.includes('\t') ? texto.split('\t') : texto.split(/;|,/))
-        .map((p) => p.trim());
 
       let nome = '';
       let cpf = '';
@@ -256,49 +379,18 @@ export function CondutoresPage() {
       let status = 'ativo';
       let observacoes = '';
 
-      if (texto.includes('\t') && partes.length >= 3) {
-        const getByIndex = (columnIndex: number) =>
-          columnIndex >= 0 ? partes[columnIndex] || '' : '';
+      nome = getByMap(partes, 'nome') || partes[0] || '';
+      cpf = soDigitos(getByMap(partes, 'cpf'));
+      telefone = limparTelefone(getByMap(partes, 'telefone'));
+      status = /inativo/i.test(getByMap(partes, 'ativo')) ? 'inativo' : 'ativo';
 
-        if (headerIndexes) {
-          nome = getByIndex(headerIndexes.nome);
-          cpf = soDigitos(getByIndex(headerIndexes.cpf));
-          telefone = limparTelefone(getByIndex(headerIndexes.celular) || getByIndex(headerIndexes.telefone));
-          status = /inativo/i.test(getByIndex(headerIndexes.ativo)) ? 'inativo' : 'ativo';
-
-          const observacoesParts = [
-            getByIndex(headerIndexes.cliente) ? `Cliente: ${getByIndex(headerIndexes.cliente)}` : '',
-            getByIndex(headerIndexes.tipo) ? `Tipo: ${getByIndex(headerIndexes.tipo)}` : '',
-            getByIndex(headerIndexes.consulta) ? `Consulta: ${getByIndex(headerIndexes.consulta)}` : '',
-            getByIndex(headerIndexes.situacaoCadastro)
-              ? `Situação cadastro: ${getByIndex(headerIndexes.situacaoCadastro)}`
-              : '',
-          ].filter(Boolean);
-          observacoes = observacoesParts.join(' | ');
-        } else {
-          nome = partes[2] || '';
-          cpf = soDigitos(partes[3] || '');
-          telefone = limparTelefone(partes[6] || partes[5] || '');
-          status = /inativo/i.test(partes[10] || partes[9] || '') ? 'inativo' : 'ativo';
-
-          const observacoesParts = [
-            partes[1] ? `Cliente: ${partes[1]}` : '',
-            partes[7] ? `Tipo: ${partes[7]}` : '',
-            partes[8] ? `Consulta: ${partes[8]}` : '',
-            partes[12] ? `Situação cadastro: ${partes[12]}` : '',
-          ].filter(Boolean);
-          observacoes = observacoesParts.join(' | ');
-        }
-      } else if (partes.length >= 3) {
-        nome = partes[0] || '';
-        cpf = soDigitos(partes[1] || '');
-        telefone = limparTelefone(partes[2] || '');
-      } else if (partes.length === 2) {
-        nome = partes[0] || '';
-        cpf = soDigitos(partes[1] || '');
-      } else if (partes.length === 1) {
-        nome = partes[0] || '';
-      }
+      const observacoesParts = [
+        getByMap(partes, 'cliente') ? `Cliente: ${getByMap(partes, 'cliente')}` : '',
+        getByMap(partes, 'tipo') ? `Tipo: ${getByMap(partes, 'tipo')}` : '',
+        getByMap(partes, 'consulta') ? `Consulta: ${getByMap(partes, 'consulta')}` : '',
+        getByMap(partes, 'situacaoCadastro') ? `Situação cadastro: ${getByMap(partes, 'situacaoCadastro')}` : '',
+      ].filter(Boolean);
+      observacoes = observacoesParts.join(' | ');
 
       nome = nome.trim();
       cpf = cpf.length === 11 ? cpf : '';
@@ -317,7 +409,7 @@ export function CondutoresPage() {
       });
     });
 
-    return { total: linhas.length, registros, errors };
+    return { total: importPreview.rows.length, registros, errors };
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -336,7 +428,7 @@ export function CondutoresPage() {
     setImporting(true);
     setImportResult(null);
 
-    const parsed = parseImportText(importText);
+    const parsed = parseImportText();
     if (parsed.registros.length === 0) {
       setImportResult({
         total: parsed.total,
@@ -582,11 +674,20 @@ export function CondutoresPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {condutoresFiltrados.map((cd) => (
-                  <tr key={cd.id} className={`hover:bg-slate-50 ${selectedIds.has(cd.id) ? 'bg-blue-50' : ''}`}>
+                {condutoresFiltrados.map((cd, index) => (
+                  <tr
+                    key={cd.id}
+                    className={`hover:bg-slate-50 ${selectedIds.has(cd.id) ? 'bg-blue-50' : ''} ${selectionMode ? 'cursor-pointer' : ''}`}
+                    onClick={selectionMode ? (e) => toggleSelect(cd.id, index, e.shiftKey) : undefined}
+                  >
                     {selectionMode && (
                       <td className="px-3 py-3">
-                        <button onClick={() => toggleSelect(cd.id)}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelect(cd.id, index, e.shiftKey);
+                          }}
+                        >
                           {selectedIds.has(cd.id) ? (
                             <CheckSquare size={18} className="text-brand-600" />
                           ) : (
@@ -622,10 +723,10 @@ export function CondutoresPage() {
                       <div className="flex items-center justify-end gap-1">
                         {canEdit && (
                           <>
-                            <button className="btn-ghost p-1.5" onClick={() => openModal(cd)}>
+                            <button className="btn-ghost p-1.5" onClick={(e) => { e.stopPropagation(); openModal(cd); }}>
                               <Pencil size={16} />
                             </button>
-                            <button className="btn-ghost p-1.5 text-red-500" onClick={() => setDeleteTarget(cd)}>
+                            <button className="btn-ghost p-1.5 text-red-500" onClick={(e) => { e.stopPropagation(); setDeleteTarget(cd); }}>
                               <Trash2 size={16} />
                             </button>
                           </>
@@ -736,7 +837,7 @@ export function CondutoresPage() {
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
             <p className="font-medium mb-1">Como usar:</p>
-            <p>Você pode colar <strong>a planilha inteira do Excel</strong> aqui. O sistema identifica as colunas pelo cabeçalho e tenta ler Nome, CPF, Telefone/Celular, Tipo, Consulta, Ativo e Situação Cadastro.</p>
+            <p>Você pode colar <strong>a planilha inteira do Excel</strong> aqui. O sistema tenta identificar as colunas automaticamente, mas você também pode ajustar abaixo antes de importar.</p>
             <p className="mt-1">Se não vier planilha completa, também aceita linhas simples com <strong>Nome, CPF e Telefone</strong>. Só o nome é obrigatório.</p>
             <p className="mt-1">Duplicidade é verificada por <strong>CPF</strong>, <strong>nome completo</strong> e também por <strong>primeiro + segundo nome</strong>.</p>
             <p className="mt-1 text-xs text-blue-600">Exemplo: João da Silva, 123.456.789-00, (11) 91234-5678</p>
@@ -776,6 +877,47 @@ export function CondutoresPage() {
               placeholder={`ID\tCliente\tNome\tCPF\tSenha\tTelefone\tCelular\tTipo\tConsulta\tAtivo\n3E+05\tGFL - CR LOGISTICS\tJOAO DA SILVA\t12345678900\t123456\t(11)90000-0000\t(11)98888-7777\tAGREGADO\t25/05/2027\tAtivo`}
             />
           </div>
+
+          {importPreview.headers.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-slate-700">Mapeamento das colunas</p>
+                <p className="text-xs text-slate-500">
+                  Se a leitura automática vier errada, escolha manualmente as colunas antes de importar.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  ['nome', 'Nome'],
+                  ['cpf', 'CPF'],
+                  ['telefone', 'Telefone/Celular'],
+                  ['cliente', 'Cliente'],
+                  ['tipo', 'Tipo'],
+                  ['consulta', 'Consulta'],
+                  ['ativo', 'Ativo'],
+                  ['situacaoCadastro', 'Situação Cadastro'],
+                ].map(([key, label]) => (
+                  <div key={key}>
+                    <label className="label">{label}</label>
+                    <select
+                      className="input"
+                      value={importMapping[key as keyof typeof importMapping]}
+                      onChange={(e) =>
+                        setImportMapping((prev) => ({ ...prev, [key]: e.target.value }))
+                      }
+                    >
+                      <option value="">Ignorar</option>
+                      {importPreview.headers.map((header, index) => (
+                        <option key={`${key}-${index}`} value={String(index)}>
+                          {header || `Coluna ${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {importResult && (
             <div className={`p-3 rounded-lg text-sm ${(importResult.imported > 0 || importResult.updated > 0) ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
@@ -840,8 +982,17 @@ export function CondutoresPage() {
             )}
             Selecionar todos
           </button>
+          <button
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Limpar seleção
+          </button>
           <span className="text-sm text-slate-500">
             {selectedIds.size} condutor(es) selecionado(s)
+          </span>
+          <span className="text-xs text-slate-400 hidden md:inline">
+            Dica: clique nas linhas ou use Shift para selecionar um intervalo.
           </span>
           <button
             className="btn-danger flex items-center gap-1 disabled:opacity-50"
