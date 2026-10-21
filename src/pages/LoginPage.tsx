@@ -40,13 +40,29 @@ export function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { nome: email.split('@')[0], perfil: 'operador' } },
       });
       if (error) throw error;
-      setError('Cadastro criado! Verifique seu email para confirmar.');
+
+      if (data.session) {
+        await refreshProfile();
+        navigate(from, { replace: true });
+        return;
+      }
+
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+      if (!loginError) {
+        await refreshProfile();
+        navigate(from, { replace: true });
+        return;
+      }
+
+      setError(
+        'Conta criada, mas o Supabase ainda exige confirmação de e-mail. Desative "Confirm email" em Authentication > Sign In / Providers > Email.'
+      );
     } catch (err: any) {
       setError(err?.message || (err && typeof err === 'object' ? JSON.stringify(err) : 'Erro ao cadastrar'));
     } finally {
