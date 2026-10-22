@@ -15,13 +15,19 @@ export function LoginPage() {
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
 
   const from = (location.state as { from?: string })?.from || '/';
+  const emailNormalizado = email.trim().toLowerCase();
+  const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalizado);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!emailValido) {
+      setError('Informe um e-mail valido.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: emailNormalizado, password });
       if (error) throw error;
       await refreshProfile();
       navigate(from, { replace: true });
@@ -33,17 +39,21 @@ export function LoginPage() {
   };
 
   const handleSignUp = async () => {
-    if (!email || !password) {
+    if (!emailNormalizado || !password) {
       setError('Informe email e senha para cadastrar');
+      return;
+    }
+    if (!emailValido) {
+      setError('Informe um e-mail valido.');
       return;
     }
     setLoading(true);
     setError(null);
     try {
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: emailNormalizado,
         password,
-        options: { data: { nome: email.split('@')[0], perfil: 'operador' } },
+        options: { data: { nome: emailNormalizado.split('@')[0], perfil: 'operador' } },
       });
       if (error) throw error;
 
@@ -53,7 +63,7 @@ export function LoginPage() {
         return;
       }
 
-      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email: emailNormalizado, password });
       if (!loginError) {
         await refreshProfile();
         navigate(from, { replace: true });
