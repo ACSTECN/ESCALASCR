@@ -309,6 +309,74 @@ export const dbInteresses = {
 // ============================================================
 // USUÁRIOS
 // ============================================================
+// Chama uma Edge Function de gestão de usuários com timeout e leitura tolerante de resposta.
+const chamarFuncaoUsuario = async (
+  nomeFuncao: string,
+  body: Record<string, unknown>,
+  mensagemPadrao: string
+) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+    if (!token) {
+      return { data: null, error: new Error('Sessão expirada. Entre novamente para continuar.') };
+    }
+
+    const res = await fetch(`${supabaseUrl}/functions/v1/${nomeFuncao}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        apikey: supabaseAnonKey,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    const texto = await res.text();
+    let json: any = null;
+    try {
+      json = texto ? JSON.parse(texto) : null;
+    } catch {
+      json = null;
+    }
+
+    if (!res.ok) {
+      const detalhe = json?.error || json?.message || texto?.slice(0, 200);
+      if (res.status === 404) {
+        return {
+          data: null,
+          error: new Error(
+            'A função de gestão de usuários não está publicada no Supabase (404). Publique a Edge Function e tente novamente.'
+          ),
+        };
+      }
+      if (res.status === 401 || res.status === 403) {
+        return {
+          data: null,
+          error: new Error(json ?? 'Sem permissão para esta ação. Confirme se seu perfil é admin.'),
+        };
+      }
+      return { data: null, error: new Error(detalhe || mensagemPadrao) };
+    }
+
+    return { data: json, error: null };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      return { data: null, error: new Error('A operação demorou demais e foi cancelada. Tente novamente.') };
+    }
+    return {
+      data: null,
+      error: new Error(err?.message || 'Falha de conexão com o Supabase. Verifique sua internet.'),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 export const dbUsuarios = {
   list: () => supabase.from('usuarios').select('*').order('nome'),
   get: (id: string) => supabase.from('usuarios').select('*').eq('id', id).single(),
@@ -317,37 +385,23 @@ export const dbUsuarios = {
 
   // Cria usuário via Edge Function (precisa de service_role)
   create: async (data: { email: string; password: string; nome: string; perfil: string }) => {
-    const { data: session } = await supabase.auth.getSession();
-    const token = session.session?.access_token;
-    const res = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: supabaseAnonKey,
-      },
-      body: JSON.stringify(data),
-    });
-    const json = await res.json();
-    if (!res.ok) return { data: null, error: new Error(json.error || 'Erro ao criar usuário') };
-    return { data: json.user, error: null };
+    const { data: json, error } = await chamarFuncaoUsuario(
+      'create-user',
+      data,
+      'Erro ao criar usuário'
+    );
+    if (error) return { data: null, error };
+    return { data: json?.user ?? json, error: null };
   },
 
   // Remove usuário via Edge Function
   remove: async (id: string) => {
-    const { data: session } = await supabase.auth.getSession();
-    const token = session.session?.access_token;
-    const res = await fetch(`${supabaseUrl}/functions/v1/delete-user`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: supabaseAnonKey,
-      },
-      body: JSON.stringify({ id }),
-    });
-    const json = await res.json();
-    if (!res.ok) return { data: null, error: new Error(json.error || 'Erro ao excluir usuário') };
+    const { data: json, error } = await chamarFuncaoUsuario(
+      'delete-user',
+      { id },
+      'Erro ao excluir usuário'
+    );
+    if (error) return { data: null, error };
     return { data: json, error: null };
   },
 };

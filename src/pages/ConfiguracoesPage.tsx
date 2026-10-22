@@ -69,31 +69,44 @@ export function ConfiguracoesPage() {
     }
     setSavingUser(true);
     setUserError(null);
-    if (editingUser) {
-      // Atualiza perfil/nome na tabela usuarios
-      const update: Partial<Usuario> = { nome: formUser.nome, perfil: formUser.perfil };
-      await dbUsuarios.update(editingUser.id, update);
-    } else {
-      const { error } = await dbUsuarios.create({
-        nome: formUser.nome,
-        email: formUser.email,
-        password: formUser.senha,
-        perfil: formUser.perfil,
-      });
-      if (error) {
-        setUserError(error.message);
-        setSavingUser(false);
-        return;
+    try {
+      if (editingUser) {
+        // Atualiza perfil/nome na tabela usuarios
+        const update: Partial<Usuario> = { nome: formUser.nome, perfil: formUser.perfil };
+        const { error } = await dbUsuarios.update(editingUser.id, update);
+        if (error) {
+          setUserError(error.message);
+          return;
+        }
+      } else {
+        const { error } = await dbUsuarios.create({
+          nome: formUser.nome,
+          email: formUser.email.trim().toLowerCase(),
+          password: formUser.senha,
+          perfil: formUser.perfil,
+        });
+        if (error) {
+          setUserError(error.message);
+          return;
+        }
       }
+      setModalOpen(false);
+      loadUsuarios();
+    } catch (err: any) {
+      setUserError(err?.message || 'Erro inesperado ao salvar usuário');
+    } finally {
+      setSavingUser(false);
     }
-    setModalOpen(false);
-    loadUsuarios();
-    setSavingUser(false);
   };
 
   const excluirUsuario = async () => {
     if (!deleteTarget) return;
-    await dbUsuarios.remove(deleteTarget.id);
+    const { error } = await dbUsuarios.remove(deleteTarget.id);
+    if (error) {
+      setUserError(error.message);
+      setDeleteTarget(null);
+      return;
+    }
     setDeleteTarget(null);
     loadUsuarios();
   };
@@ -223,6 +236,12 @@ export function ConfiguracoesPage() {
               <Plus size={16} /> Novo usuário
             </button>
           </div>
+
+          {!modalOpen && userError && (
+            <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
+              {userError}
+            </div>
+          )}
 
           {loadingUsers ? (
             <div className="p-8 text-center text-slate-400">Carregando...</div>

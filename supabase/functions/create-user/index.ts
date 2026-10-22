@@ -63,12 +63,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Cria o usuário no auth
+    // Cria usuario no auth. O trigger on_auth_user_created ja insere o perfil
+    // em public.usuarios, por isso usamos upsert para aplicar o perfil escolhido.
     const { data: newUser, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { nome },
+      user_metadata: { nome, perfil },
     });
 
     if (authError || !newUser?.user) {
@@ -78,13 +79,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Cria o perfil na tabela public.usuarios
-    const { error: profileError } = await supabase.from('usuarios').insert({
-      id: newUser.user.id,
-      nome,
-      email,
-      perfil,
-    });
+    // Cria ou atualiza o perfil na tabela public.usuarios
+    const { error: profileError } = await supabase
+      .from('usuarios')
+      .upsert(
+        {
+          id: newUser.user.id,
+          nome,
+          email,
+          perfil,
+        },
+        { onConflict: 'id' }
+      );
 
     if (profileError) {
       return new Response(JSON.stringify({ error: profileError.message }), {
