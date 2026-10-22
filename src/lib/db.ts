@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js';
 import { supabase, supabaseUrl, supabaseAnonKey } from '@/lib/supabase';
 import { startOfWeek, addDays, formatISO } from 'date-fns';
 import type {
@@ -377,6 +378,46 @@ const chamarFuncaoUsuario = async (
   }
 };
 
+const criarUsuarioSemFuncao = async (data: {
+  email: string;
+  password: string;
+  nome: string;
+  perfil: string;
+}) => {
+  const clienteCadastro = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const { data: criado, error } = await clienteCadastro.auth.signUp({
+    email: data.email,
+    password: data.password,
+    options: {
+      data: {
+        nome: data.nome,
+        perfil: data.perfil,
+      },
+    },
+  });
+
+  if (error) {
+    return { data: null, error };
+  }
+
+  return {
+    data: {
+      id: criado.user?.id,
+      email: data.email,
+      nome: data.nome,
+      perfil: data.perfil,
+    },
+    error: null,
+  };
+};
+
 export const dbUsuarios = {
   list: () => supabase.from('usuarios').select('*').order('nome'),
   get: (id: string) => supabase.from('usuarios').select('*').eq('id', id).single(),
@@ -390,7 +431,12 @@ export const dbUsuarios = {
       data,
       'Erro ao criar usuário'
     );
-    if (error) return { data: null, error };
+    if (error) {
+      if (/não está publicada no Supabase \(404\)/i.test(error.message)) {
+        return criarUsuarioSemFuncao(data);
+      }
+      return { data: null, error };
+    }
     return { data: json?.user ?? json, error: null };
   },
 
