@@ -148,6 +148,46 @@ export interface Configuracao {
   updated_at: string;
 }
 
+export type TipoMensagemMagalog = 'novo_condutor' | 'reenvio_senha' | 'outro';
+
+export interface MensagemMagalog {
+  id: string;
+  gmail_message_id: string;
+  gmail_thread_id: string | null;
+  tipo: TipoMensagemMagalog;
+  assunto: string | null;
+  remetente: string | null;
+  nome: string | null;
+  cpf: string | null;
+  telefone: string | null;
+  senha: string | null;
+  corpo: string | null;
+  recebido_em: string | null;
+  lida: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GmailStatus {
+  conectado: boolean;
+  email: string | null;
+  escopo: string | null;
+  conectado_em: string | null;
+  sincronizado_em: string | null;
+  ultimo_status: string | null;
+  ultimo_erro: string | null;
+  total_mensagens: number;
+  nao_lidas: number;
+  sync_configurado: boolean;
+  url_callback: string | null;
+}
+
+export const TIPO_MENSAGEM_MAGALOG_LABELS: Record<TipoMensagemMagalog, string> = {
+  novo_condutor: 'Novo Condutor',
+  reenvio_senha: 'Reenvio de Senha',
+  outro: 'Outro',
+};
+
 export interface ThresholdsOcupacao {
   vermelho: number;
   amarelo: number;

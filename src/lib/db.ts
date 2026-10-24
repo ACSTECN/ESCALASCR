@@ -12,6 +12,7 @@ import type {
   InteresseEntregador,
   StatusAgendamento,
   StatusInteresse,
+  GmailStatus,
 } from '@/types';
 
 // ============================================================
@@ -432,7 +433,13 @@ export const dbUsuarios = {
       'Erro ao criar usuário'
     );
     if (error) {
-      if (/não está publicada no Supabase \(404\)/i.test(error.message)) {
+      if (
+        /não está publicada no Supabase \(404\)/i.test(error.message) ||
+        /failed to fetch/i.test(error.message) ||
+        /falha de conexão/i.test(error.message) ||
+        /network/i.test(error.message) ||
+        /load failed/i.test(error.message)
+      ) {
         return criarUsuarioSemFuncao(data);
       }
       return { data: null, error };
@@ -450,6 +457,102 @@ export const dbUsuarios = {
     if (error) return { data: null, error };
     return { data: json, error: null };
   },
+};
+
+// ============================================================
+// MENSAGENS MAGALOG (Gmail API)
+// ============================================================
+// Chama uma Edge Function autenticada com o token do usuário logado.
+const chamarEdge = async <T,>(
+  nomeFuncao: string,
+  body: Record<string, unknown> = {}
+): Promise<{ data: T | null; error: Error | null }> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
+
+  try {
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+    if (!token) {
+      return { data: null, error: new Error('Sessão expirada. Entre novamente para continuar.') };
+    }
+
+    const res = await fetch(`${supabaseUrl}/functions/v1/${nomeFuncao}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        apikey: supabaseAnonKey,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    const texto = await res.text();
+    let json: any = null;
+    try {
+      json = texto ? JSON.parse(texto) : null;
+    } catch {
+      json = null;
+    }
+
+    if (!res.ok) {
+      if (res.status === 404) {
+        return {
+          data: null,
+          error: new Error(
+            'A integração Gmail não está publicada no Supabase (404). Publique as Edge Functions e tente novamente.'
+          ),
+        };
+      }
+      if (res.status === 401 || res.status === 403) {
+        return { data: null, error: new Error(json?.error || 'Sem permissão para esta ação.') };
+      }
+      return { data: null, error: new Error(json?.error || json?.message || `Erro ${res.status}`) };
+    }
+
+    return { data: json as T, error: null };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      return { data: null, error: new Error('A operação demorou demais e foi cancelada. Tente novamente.') };
+    }
+    return {
+      data: null,
+      error: new Error(err?.message || 'Falha de conexão. Verifique sua internet.'),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+export const dbMensagensMagalog = {
+  list: () =>
+    supabase
+      .from('mensagens_magalog')
+      .select('*')
+      .order('recebido_em', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false }),
+
+  countNaoLidas: () =>
+    supabase.from('mensagens_magalog').select('id', { count: 'exact', head: true }).eq('lida', false),
+
+  marcarLida: (id: string, lida = true) =>
+    supabase.from('mensagens_magalog').update({ lida }).eq('id', id).select().single(),
+
+  marcarTodasLidas: () =>
+    supabase.from('mensagens_magalog').update({ lida: true }).eq('lida', false).select('id'),
+
+  remove: (id: string) => supabase.from('mensagens_magalog').delete().eq('id', id),
+
+  removeMany: (ids: string[]) => supabase.from('mensagens_magalog').delete().in('id', ids),
+};
+
+export const dbGmail = {
+  status: () => chamarEdge<GmailStatus>('gmail-status'),
+  gerarUrlAutorizacao: () => chamarEdge<{ url: string }>('gmail-auth-url'),
+  sincronizar: () =>
+    chamarEdge<{ encontradas: number; novas: number; erros: string[] }>('gmail-sync', {}),
+  desconectar: () => chamarEdge<{ success: boolean }>('gmail-disconnect'),
 };
 
 // ============================================================

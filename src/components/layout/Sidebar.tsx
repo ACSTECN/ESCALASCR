@@ -9,6 +9,7 @@ import {
   Settings,
   MapPin,
   ClipboardList,
+  Mail,
   X,
 } from 'lucide-react';
 import type { PerfilUsuario } from '@/types';
@@ -29,6 +30,7 @@ const navItems: NavItem[] = [
   { to: '/condutores', label: 'Condutores', icon: Users, roles: ['admin', 'supervisor', 'operador'] },
   { to: '/escala-amanha', label: 'Escala de Amanhã', icon: Sun, roles: ['admin', 'supervisor', 'operador', 'visualizador'] },
   { to: '/lista-espera', label: 'Lista de Espera', icon: ClipboardList, roles: ['admin', 'supervisor', 'operador', 'visualizador'] },
+  { to: '/mensagens', label: 'Mensagens MAGALOG', icon: Mail, roles: ['admin', 'supervisor', 'operador', 'visualizador'] },
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'supervisor', 'visualizador'] },
   { to: '/cidades-hubs', label: 'Cidades & HUBs', icon: MapPin, roles: ['admin'] },
   { to: '/historico', label: 'Histórico', icon: History, roles: ['admin', 'supervisor'] },

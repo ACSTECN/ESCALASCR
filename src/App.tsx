@@ -12,6 +12,7 @@ import { HistoricoPage } from '@/pages/HistoricoPage';
 import { ConfiguracoesPage } from '@/pages/ConfiguracoesPage';
 import { ListaEsperaPage } from '@/pages/ListaEsperaPage';
 import { InteresseEntregadorPage } from '@/pages/InteresseEntregadorPage';
+import { MensagensMagalogPage } from '@/pages/MensagensMagalogPage';
 import { useInitAuth } from '@/hooks/useAuth';
 
 function AppRoutes() {
@@ -52,6 +53,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute roles={['admin', 'supervisor', 'operador', 'visualizador']}>
               <ListaEsperaPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="mensagens"
+          element={
+            <ProtectedRoute roles={['admin', 'supervisor', 'operador', 'visualizador']}>
+              <MensagensMagalogPage />
             </ProtectedRoute>
           }
         />
