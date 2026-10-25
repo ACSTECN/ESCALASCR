@@ -27,6 +27,62 @@ const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const REMETENTE = 'sistema@gflogistica.com.br';
 const ASSUNTOS = ['Novo Condutor - MAGALOG', 'Reenvio de Senha - MAGALOG'];
 
+const HTML_ENTITIES: Record<string, string> = {
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  '#39': "'",
+  ccedil: 'c',
+  Ccedil: 'C',
+  atilde: 'a',
+  Atilde: 'A',
+  aacute: 'a',
+  Aacute: 'A',
+  agrave: 'a',
+  Agrave: 'A',
+  acirc: 'a',
+  Acirc: 'A',
+  eacute: 'e',
+  Eacute: 'E',
+  ecirc: 'e',
+  Ecirc: 'E',
+  iacute: 'i',
+  Iacute: 'I',
+  oacute: 'o',
+  Oacute: 'O',
+  ocirc: 'o',
+  Ocirc: 'O',
+  otilde: 'o',
+  Otilde: 'O',
+  uacute: 'u',
+  Uacute: 'U',
+};
+
+const decodificarEntidadesHtml = (texto: string): string =>
+  texto.replace(/&([a-zA-Z#0-9]+);/g, (match, entity) => {
+    if (entity.startsWith('#x')) {
+      const code = Number.parseInt(entity.slice(2), 16);
+      return Number.isNaN(code) ? match : String.fromCodePoint(code);
+    }
+    if (entity.startsWith('#')) {
+      const code = Number.parseInt(entity.slice(1), 10);
+      return Number.isNaN(code) ? match : String.fromCodePoint(code);
+    }
+    return HTML_ENTITIES[entity] ?? match;
+  });
+
+const limparTextoEmail = (texto: string): string =>
+  decodificarEntidadesHtml(texto)
+    .replace(/\\r/g, '')
+    .replace(/\\t/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
 // ------------------------------------------------------------
 // Helpers de parsing
 // ------------------------------------------------------------
@@ -63,21 +119,14 @@ const extrairTexto = (payload: GmailPart | undefined): { texto: string; html: st
 };
 
 const htmlParaTexto = (html: string): string =>
-  html
+  limparTextoEmail(
+    html
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  );
 
 const capturar = (texto: string, padroes: RegExp[]): string | null => {
   for (const re of padroes) {
@@ -271,7 +320,7 @@ Deno.serve(async (req) => {
 
         const assunto = header('Subject');
         const { texto, html } = extrairTexto(msg.payload);
-        const corpo = (texto || htmlParaTexto(html)).trim();
+        const corpo = limparTextoEmail(texto || htmlParaTexto(html));
         const campos = extrairCampos(assunto, corpo);
 
         const registro = {

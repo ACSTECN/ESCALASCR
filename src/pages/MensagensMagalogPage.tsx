@@ -570,7 +570,7 @@ export function MensagensMagalogPage() {
 
             <div>
               <label className="label">Conteúdo do e-mail</label>
-              <pre className="max-h-72 overflow-auto rounded-xl border border-slate-200 bg-slate-900 p-4 text-xs leading-relaxed text-slate-100 whitespace-pre-wrap break-words">
+              <pre className="max-h-72 overflow-auto rounded-xl border border-slate-200 bg-slate-950 p-4 text-[13px] leading-6 text-slate-100 whitespace-pre-wrap break-words">
                 {detalhe.corpo || 'Sem conteúdo disponível.'}
               </pre>
             </div>
