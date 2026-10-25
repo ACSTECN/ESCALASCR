@@ -10,7 +10,7 @@
 -- ------------------------------------------------------------
 -- Tabela: gmail_tokens
 -- Guarda as credenciais OAuth (refresh_token / access_token).
--- Acesso EXCLUSIVO via Edge Function com service_role:
+-- Acesso EXCLUSIVO via Edge Function com servaice_role:
 -- RLS habilitado e SEM policies públicas.
 -- ------------------------------------------------------------
 create table if not exists public.gmail_tokens (
