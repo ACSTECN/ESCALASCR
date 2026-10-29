@@ -35,47 +35,90 @@ const HTML_ENTITIES: Record<string, string> = {
   quot: '"',
   apos: "'",
   '#39': "'",
-  ccedil: 'c',
-  Ccedil: 'C',
-  atilde: 'a',
-  Atilde: 'A',
-  aacute: 'a',
-  Aacute: 'A',
-  agrave: 'a',
-  Agrave: 'A',
-  acirc: 'a',
-  Acirc: 'A',
-  eacute: 'e',
-  Eacute: 'E',
-  ecirc: 'e',
-  Ecirc: 'E',
-  iacute: 'i',
-  Iacute: 'I',
-  oacute: 'o',
-  Oacute: 'O',
-  ocirc: 'o',
-  Ocirc: 'O',
-  otilde: 'o',
-  Otilde: 'O',
-  uacute: 'u',
-  Uacute: 'U',
+  ccedil: 'ç',
+  Ccedil: 'Ç',
+  atilde: 'ã',
+  Atilde: 'Ã',
+  aacute: 'á',
+  Aacute: 'Á',
+  agrave: 'à',
+  Agrave: 'À',
+  acirc: 'â',
+  Acirc: 'Â',
+  eacute: 'é',
+  Eacute: 'É',
+  ecirc: 'ê',
+  Ecirc: 'Ê',
+  iacute: 'í',
+  Iacute: 'Í',
+  oacute: 'ó',
+  Oacute: 'Ó',
+  ocirc: 'ô',
+  Ocirc: 'Ô',
+  otilde: 'õ',
+  Otilde: 'Õ',
+  uacute: 'ú',
+  Uacute: 'Ú',
 };
 
-const decodificarEntidadesHtml = (texto: string): string =>
-  texto.replace(/&([a-zA-Z#0-9]+);/g, (match, entity) => {
-    if (entity.startsWith('#x')) {
-      const code = Number.parseInt(entity.slice(2), 16);
-      return Number.isNaN(code) ? match : String.fromCodePoint(code);
+const ARTEFATOS_TEXTO_RE =
+  /&(?:[a-z]+|#\d+|#x[a-f0-9]+);|(?:tilde|acute|grave|circ|cedil|nbsp|quot|apos);|=[0-9A-F]{2}/gi;
+
+const decodificarEntidadesHtml = (texto: string): string => {
+  let atual = texto;
+
+  for (let i = 0; i < 3; i += 1) {
+    const proximo = atual.replace(/&([a-zA-Z#0-9]+);/g, (match, entity) => {
+      if (entity.startsWith('#x')) {
+        const code = Number.parseInt(entity.slice(2), 16);
+        return Number.isNaN(code) ? match : String.fromCodePoint(code);
+      }
+      if (entity.startsWith('#')) {
+        const code = Number.parseInt(entity.slice(1), 10);
+        return Number.isNaN(code) ? match : String.fromCodePoint(code);
+      }
+      return HTML_ENTITIES[entity] ?? match;
+    });
+
+    if (proximo === atual) break;
+    atual = proximo;
+  }
+
+  return atual;
+};
+
+const decodificarQuotedPrintable = (texto: string): string => {
+  if (!/=([0-9A-F]{2}|\r?\n)/i.test(texto)) {
+    return texto;
+  }
+
+  const semSoftBreak = texto.replace(/=\r?\n/g, '');
+  const bytes: number[] = [];
+
+  for (let i = 0; i < semSoftBreak.length; i += 1) {
+    const atual = semSoftBreak[i];
+    const hex = semSoftBreak.slice(i + 1, i + 3);
+
+    if (atual === '=' && /^[0-9A-F]{2}$/i.test(hex)) {
+      bytes.push(Number.parseInt(hex, 16));
+      i += 2;
+      continue;
     }
-    if (entity.startsWith('#')) {
-      const code = Number.parseInt(entity.slice(1), 10);
-      return Number.isNaN(code) ? match : String.fromCodePoint(code);
-    }
-    return HTML_ENTITIES[entity] ?? match;
-  });
+
+    bytes.push(semSoftBreak.charCodeAt(i));
+  }
+
+  return new TextDecoder('utf-8').decode(Uint8Array.from(bytes));
+};
+
+const pontuarQualidadeTexto = (texto: string): number => {
+  const artefatos = texto.match(ARTEFATOS_TEXTO_RE)?.length ?? 0;
+  const linhas = texto.split('\n').filter((linha) => linha.trim()).length;
+  return texto.length + linhas * 12 - artefatos * 80;
+};
 
 const limparTextoEmail = (texto: string): string =>
-  decodificarEntidadesHtml(texto)
+  decodificarEntidadesHtml(decodificarQuotedPrintable(texto))
     .replace(/\\r/g, '')
     .replace(/\\t/g, ' ')
     .replace(/[ \t]+/g, ' ')
@@ -121,12 +164,24 @@ const extrairTexto = (payload: GmailPart | undefined): { texto: string; html: st
 const htmlParaTexto = (html: string): string =>
   limparTextoEmail(
     html
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
   );
+
+const escolherMelhorCorpoEmail = (texto: string, html: string): string => {
+  const textoLimpo = limparTextoEmail(texto);
+  const htmlLimpo = htmlParaTexto(html);
+
+  if (!textoLimpo) return htmlLimpo;
+  if (!htmlLimpo) return textoLimpo;
+
+  return pontuarQualidadeTexto(htmlLimpo) >= pontuarQualidadeTexto(textoLimpo)
+    ? htmlLimpo
+    : textoLimpo;
+};
 
 const capturar = (texto: string, padroes: RegExp[]): string | null => {
   for (const re of padroes) {
@@ -320,7 +375,7 @@ Deno.serve(async (req) => {
 
         const assunto = header('Subject');
         const { texto, html } = extrairTexto(msg.payload);
-        const corpo = limparTextoEmail(texto || htmlParaTexto(html));
+        const corpo = escolherMelhorCorpoEmail(texto, html);
         const campos = extrairCampos(assunto, corpo);
 
         const registro = {

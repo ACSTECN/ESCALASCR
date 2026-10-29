@@ -553,8 +553,10 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
 
   const exportarAgendamentos = () => {
     if (!coleta) return;
-    const linhas = agendamentosAtivos.map((a) => ({
+    const linhas = agendamentosAtivos.map((a, index) => ({
+      '#': index + 1,
       'Condutor': a.condutor?.nome_completo || '',
+      'Rota': a.condutor?.rota_fixa?.sigla || '',
       'CPF': a.condutor?.cpf || '',
       'Telefone': a.condutor?.telefone || '',
       'Integração': a.condutor?.fez_integracao ? 'Sim' : 'Não',
@@ -852,6 +854,11 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm md:text-base font-medium text-slate-800 truncate">{ag.condutor?.nome_completo}</span>
+                        {ag.condutor?.rota_fixa?.sigla && (
+                          <span className="badge bg-cyan-100 text-cyan-800" title="Rota fixa">
+                            {ag.condutor.rota_fixa.sigla}
+                          </span>
+                        )}
                         <span
                           className={`badge ${
                             ag.condutor?.fez_integracao

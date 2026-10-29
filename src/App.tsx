@@ -5,6 +5,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { CalendarioPage } from '@/pages/CalendarioPage';
 import { MetasPage } from '@/pages/MetasPage';
 import { CondutoresPage } from '@/pages/CondutoresPage';
+import { RotasFixasPage } from '@/pages/RotasFixasPage';
 import { EscalaAmanhaPage } from '@/pages/EscalaAmanhaPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { CidadesHubsPage } from '@/pages/CidadesHubsPage';
@@ -48,6 +49,14 @@ function AppRoutes() {
           }
         />
         <Route path="escala-amanha" element={<EscalaAmanhaPage />} />
+        <Route
+          path="rotas"
+          element={
+            <ProtectedRoute roles={['admin', 'supervisor', 'operador']}>
+              <RotasFixasPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="lista-espera"
           element={

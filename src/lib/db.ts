@@ -5,6 +5,7 @@ import type {
   Cidade,
   Hub,
   Condutor,
+  RotaFixa,
   Coleta,
   MetaColeta,
   Agendamento,
@@ -61,7 +62,7 @@ export const dbCondutores = {
   list: (search?: string) => {
     let q = supabase
       .from('condutores')
-      .select('*, cidade:cidades(*), hub:hubs(*)')
+      .select('*, cidade:cidades(*), hub:hubs(*), rota_fixa:rotas_fixas(*)')
       .order('nome_completo');
     if (search) {
       q = q.or(`nome_completo.ilike.%${search}%, telefone.ilike.%${search}%, cpf.ilike.%${search}%, observacoes.ilike.%${search}%`);
@@ -71,7 +72,7 @@ export const dbCondutores = {
   listAtivos: () =>
     supabase
       .from('condutores')
-      .select('*, cidade:cidades(*), hub:hubs(*)')
+      .select('*, cidade:cidades(*), hub:hubs(*), rota_fixa:rotas_fixas(*)')
       .eq('status', 'ativo')
       .order('nome_completo'),
   create: (data: Partial<Condutor>) =>
@@ -92,6 +93,34 @@ export const dbCondutores = {
 };
 
 // ============================================================
+// ROTAS FIXAS
+// ============================================================
+export const dbRotasFixas = {
+  list: () =>
+    supabase
+      .from('rotas_fixas')
+      .select('*, hub:hubs(*), condutores:condutores(id)')
+      .order('sigla'),
+  listAtivas: () =>
+    supabase
+      .from('rotas_fixas')
+      .select('*, hub:hubs(*)')
+      .eq('ativo', true)
+      .order('sigla'),
+  create: (data: Partial<RotaFixa>) =>
+    supabase.from('rotas_fixas').insert(data).select().single(),
+  update: (id: string, data: Partial<RotaFixa>) =>
+    supabase.from('rotas_fixas').update(data).eq('id', id).select().single(),
+  remove: (id: string) => supabase.from('rotas_fixas').delete().eq('id', id),
+  listCondutores: (rotaId: string) =>
+    supabase
+      .from('condutores')
+      .select('*, cidade:cidades(*), hub:hubs(*)')
+      .eq('rota_fixa_id', rotaId)
+      .order('nome_completo'),
+};
+
+// ============================================================
 // COLETAS
 // ============================================================
 export const dbColetas = {
@@ -101,7 +130,7 @@ export const dbColetas = {
       .select(
         `*,
          hub:hubs(*, cidade:cidades(*)),
-         agendamentos:agendamentos(*, condutor:condutores(*))`
+         agendamentos:agendamentos(*, condutor:condutores(*, rota_fixa:rotas_fixas(*)))`
       )
       .gte('data_coleta', startDate)
       .lte('data_coleta', endDate)
@@ -114,7 +143,7 @@ export const dbColetas = {
       .select(
         `*,
          hub:hubs(*, cidade:cidades(*)),
-         agendamentos:agendamentos(*, condutor:condutores(*))`
+         agendamentos:agendamentos(*, condutor:condutores(*, rota_fixa:rotas_fixas(*)))`
       )
       .eq('data_coleta', date)
       .order('horario'),
@@ -125,7 +154,7 @@ export const dbColetas = {
       .select(
         `*,
          hub:hubs(*, cidade:cidades(*)),
-         agendamentos:agendamentos(*, condutor:condutores(*))`
+         agendamentos:agendamentos(*, condutor:condutores(*, rota_fixa:rotas_fixas(*)))`
       )
       .eq('id', id)
       .single(),
@@ -256,14 +285,14 @@ export const dbAgendamentos = {
   listByColeta: (coletaId: string) =>
     supabase
       .from('agendamentos')
-      .select('*, condutor:condutores(*)')
+      .select('*, condutor:condutores(*, rota_fixa:rotas_fixas(*))')
       .eq('coleta_id', coletaId)
       .order('created_at'),
 
   listByDateRange: (startDate: string, endDate: string) =>
     supabase
       .from('agendamentos')
-      .select('*, coleta:coletas(*, hub:hubs(*)), condutor:condutores(*)')
+      .select('*, coleta:coletas(*, hub:hubs(*)), condutor:condutores(*, rota_fixa:rotas_fixas(*))')
       .gte('coleta.data_coleta', startDate)
       .lte('coleta.data_coleta', endDate),
 

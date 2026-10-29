@@ -34,6 +34,21 @@ export interface Hub {
   cidade?: Cidade;
 }
 
+export interface RotaFixa {
+  id: string;
+  sigla: string;
+  nome: string | null;
+  hub_id: string | null;
+  ativo: boolean;
+  observacao: string | null;
+  is_demo: boolean;
+  created_at: string;
+  updated_at: string;
+  // joined
+  hub?: Hub;
+  condutores_count?: number;
+}
+
 export interface Condutor {
   id: string;
   nome_completo: string;
@@ -42,6 +57,7 @@ export interface Condutor {
   fez_integracao: boolean | null;
   cidade_id: string | null;
   hub_id: string | null;
+  rota_fixa_id: string | null;
   status: string;
   observacoes: string | null;
   is_demo: boolean;
@@ -50,6 +66,7 @@ export interface Condutor {
   // joined
   cidade?: Cidade;
   hub?: Hub;
+  rota_fixa?: RotaFixa | null;
 }
 
 export interface Coleta {

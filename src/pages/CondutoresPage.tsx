@@ -5,9 +5,9 @@ import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
-import { dbCondutores, dbCidades, dbHubs } from '@/lib/db';
+import { dbCondutores, dbCidades, dbHubs, dbRotasFixas } from '@/lib/db';
 import { toCSV, downloadFile } from '@/utils';
-import type { Condutor, Cidade, Hub } from '@/types';
+import type { Condutor, Cidade, Hub, RotaFixa } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import { canWrite } from '@/store/auth';
 
@@ -18,6 +18,7 @@ export function CondutoresPage() {
   const [condutores, setCondutores] = useState<Condutor[]>([]);
   const [cidades, setCidades] = useState<Cidade[]>([]);
   const [hubs, setHubs] = useState<Hub[]>([]);
+  const [rotas, setRotas] = useState<RotaFixa[]>([]);
   const [search, setSearch] = useState('');
   const [filtroCidade, setFiltroCidade] = useState('');
   const [filtroHub, setFiltroHub] = useState('');
@@ -32,6 +33,7 @@ export function CondutoresPage() {
     telefone: '',
     cidade_id: '',
     hub_id: '',
+    rota_fixa_id: '',
     status: 'ativo',
     observacoes: '',
   });
@@ -70,14 +72,16 @@ export function CondutoresPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [c, cid, h] = await Promise.all([
+    const [c, cid, h, r] = await Promise.all([
       dbCondutores.list(search),
       dbCidades.listAtivas(),
       dbHubs.listAtivos(),
+      dbRotasFixas.listAtivas(),
     ]);
     setCondutores((c.data as Condutor[]) || []);
     setCidades((cid.data as Cidade[]) || []);
     setHubs((h.data as Hub[]) || []);
+    setRotas((r.data as RotaFixa[]) || []);
     setLoading(false);
   };
 
@@ -99,8 +103,10 @@ export function CondutoresPage() {
   const exportarCondutores = () => {
     const cidadeMap = new Map(cidades.map((c) => [c.id, c.nome]));
     const hubMap = new Map(hubs.map((h) => [h.id, h.sigla]));
+    const rotaMap = new Map(rotas.map((r) => [r.id, r.sigla]));
     const linhas = condutoresFiltrados.map((c) => ({
       'Nome': c.nome_completo,
+      'Rota': c.rota_fixa?.sigla || rotaMap.get(c.rota_fixa_id || '') || '',
       'CPF': c.cpf || '',
       'Telefone': c.telefone || '',
       'Cidade': cidadeMap.get(c.cidade_id || '') || '',
@@ -121,20 +127,22 @@ export function CondutoresPage() {
             telefone: cd.telefone || '',
             cidade_id: cd.cidade_id || '',
             hub_id: cd.hub_id || '',
+            rota_fixa_id: cd.rota_fixa_id || '',
             status: cd.status,
             observacoes: cd.observacoes || '',
           }
-        : { nome_completo: '', cpf: '', telefone: '', cidade_id: '', hub_id: '', status: 'ativo', observacoes: '' }
+        : { nome_completo: '', cpf: '', telefone: '', cidade_id: '', hub_id: '', rota_fixa_id: '', status: 'ativo', observacoes: '' }
     );
     setModalOpen(true);
   };
 
   const save = async () => {
     if (!form.nome_completo.trim()) return;
+    const payload = { ...form, rota_fixa_id: form.rota_fixa_id || null };
     if (editing) {
-      await dbCondutores.update(editing.id, form);
+      await dbCondutores.update(editing.id, payload);
     } else {
-      await dbCondutores.create(form);
+      await dbCondutores.create(payload);
     }
     setModalOpen(false);
     loadData();
@@ -704,6 +712,11 @@ export function CondutoresPage() {
                         <div>
                           <div className="font-medium text-slate-800 flex items-center gap-2">
                             {cd.nome_completo}
+                            {cd.rota_fixa?.sigla && (
+                              <span className="badge bg-cyan-100 text-cyan-800" title="Rota fixa">
+                                {cd.rota_fixa.sigla}
+                              </span>
+                            )}
                             {cd.is_demo && <Badge variant="warning">DEMO</Badge>}
                           </div>
                           {cd.observacoes && <div className="text-xs text-slate-500">{cd.observacoes}</div>}
@@ -812,6 +825,21 @@ export function CondutoresPage() {
               >
                 <option value="ativo">Ativo</option>
                 <option value="inativo">Inativo</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Rota fixa</label>
+              <select
+                className="input"
+                value={form.rota_fixa_id}
+                onChange={(e) => setForm({ ...form, rota_fixa_id: e.target.value })}
+              >
+                <option value="">Sem rota fixa</option>
+                {rotas.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.sigla}{r.nome ? ` — ${r.nome}` : ''}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
