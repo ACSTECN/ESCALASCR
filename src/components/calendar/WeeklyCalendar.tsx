@@ -109,10 +109,10 @@ export function WeeklyCalendar({
             <ChevronLeft size={20} />
           </button>
           <div className="text-center">
-            <div className={`text-lg font-bold ${today ? 'text-brand-600' : 'text-slate-800'}`}>
+            <div className={`text-lg font-bold ${today ? 'text-brand-600 dark:text-cyan-300' : 'text-slate-800 dark:text-slate-100'}`}>
               {format(day, "EEEE", { locale: ptBR })}
             </div>
-            <div className="text-sm text-slate-500">{format(day, "dd/MM/yyyy")}</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">{format(day, "dd/MM/yyyy")}</div>
           </div>
           <button
             className="btn-ghost p-2"
@@ -133,7 +133,7 @@ export function WeeklyCalendar({
                 key={i}
                 onClick={() => setMobileDayIndex(i)}
                 className={`w-2.5 h-2.5 rounded-full transition-all ${
-                  i === mobileDayIndex ? 'bg-brand-600 scale-125' : count > 0 ? 'bg-slate-300' : 'bg-slate-100'
+                  i === mobileDayIndex ? 'bg-brand-600 scale-125 dark:bg-cyan-400' : count > 0 ? 'bg-slate-300 dark:bg-slate-500' : 'bg-slate-100 dark:bg-slate-800'
                 }`}
               />
             );
@@ -156,7 +156,7 @@ export function WeeklyCalendar({
         {/* Coletas stacked */}
         <div className="space-y-3">
           {dayColetas.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
+            <div className="py-12 text-center text-slate-400 dark:text-slate-500">
               <CalendarIcon className="mx-auto mb-2" size={32} />
               <p className="text-sm">Nenhuma coleta neste dia</p>
             </div>
@@ -246,7 +246,7 @@ export function WeeklyCalendar({
           )}
         </div>
         <div className="text-center">
-          <h2 className="text-lg font-bold text-slate-800">
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
             {format(days[0], "dd 'de' MMM", { locale: ptBR })} —{' '}
             {format(days[6], "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
           </h2>
@@ -277,8 +277,8 @@ export function WeeklyCalendar({
               <div
                 className={`text-center py-2 rounded-t-xl border-b-2 ${
                   today
-                    ? 'bg-slate-950 text-white border-cyan-400/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-                    : 'bg-[linear-gradient(180deg,rgba(226,232,240,0.95),rgba(241,245,249,0.92))] text-slate-800 border-slate-300'
+                    ? 'bg-slate-950 text-white border-cyan-400/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:bg-slate-900'
+                    : 'bg-[linear-gradient(180deg,rgba(226,232,240,0.95),rgba(241,245,249,0.92))] text-slate-800 border-slate-300 dark:border-slate-700 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.78),rgba(15,23,42,0.68))] dark:text-slate-100'
                 }`}
               >
                 <div className="text-xs font-medium uppercase">{format(day, 'EEE', { locale: ptBR })}</div>
@@ -291,9 +291,9 @@ export function WeeklyCalendar({
               </div>
 
               {/* Coletas */}
-              <div className="flex-1 rounded-b-xl border border-t-0 border-slate-300/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(226,232,240,0.44))] p-2 space-y-2 min-h-[120px] backdrop-blur">
+              <div className="flex-1 rounded-b-xl border border-t-0 border-slate-300/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(226,232,240,0.44))] p-2 space-y-2 min-h-[120px] backdrop-blur dark:border-slate-700/80 dark:bg-[linear-gradient(180deg,rgba(22,32,54,0.74),rgba(15,23,42,0.58))]">
                 {dayColetas.length === 0 ? (
-                  <div className="py-4 text-center text-xs text-slate-400">Sem coletas</div>
+                  <div className="py-4 text-center text-xs text-slate-400 dark:text-slate-500">Sem coletas</div>
                 ) : (
                   dayColetas.map((c) => (
                     <ColetaCard

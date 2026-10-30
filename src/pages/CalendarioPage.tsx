@@ -105,30 +105,30 @@ export function CalendarioPage() {
         }
       />
 
-      <div className="tech-panel tech-grid relative mb-5 overflow-hidden p-5 text-slate-900">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(37,99,235,0.18),_transparent_32%)]" />
+      <div className="tech-panel tech-grid relative mb-5 overflow-hidden p-5 text-slate-900 dark:border-slate-800/80 dark:bg-[linear-gradient(135deg,rgba(12,20,38,0.92),rgba(15,23,42,0.82))] dark:text-slate-100">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(37,99,235,0.18),_transparent_32%)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.10),_transparent_26%),radial-gradient(circle_at_bottom_right,_rgba(37,99,235,0.10),_transparent_30%)]" />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <BrandLogo compact subtitle="Painel Semanal" />
-            <h2 className="mt-4 text-2xl font-black tracking-[0.08em] text-slate-950">
+            <h2 className="mt-4 text-2xl font-black tracking-[0.08em] text-slate-950 dark:text-slate-100">
               Controle visual de escala com leitura rapida de ocupacao.
             </h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-600">
+            <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
               A semana fica toda visivel, com filtros e acompanhamento direto de HUB, metas e agendamentos.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-3xl border border-slate-200/80 bg-white/75 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur">
-              <div className="text-xs uppercase tracking-[0.24em] text-cyan-700">Coletas</div>
-              <div className="mt-2 text-2xl font-black text-slate-950">{coletasFiltradas.length}</div>
+            <div className="rounded-3xl border border-slate-200/80 bg-white/75 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-700/70 dark:bg-slate-900/60">
+              <div className="text-xs uppercase tracking-[0.24em] text-cyan-700 dark:text-cyan-300">Coletas</div>
+              <div className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-100">{coletasFiltradas.length}</div>
             </div>
-            <div className="rounded-3xl border border-slate-200/80 bg-white/75 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur">
-              <div className="text-xs uppercase tracking-[0.24em] text-cyan-700">HUBs</div>
-              <div className="mt-2 text-2xl font-black text-slate-950">{new Set(coletasFiltradas.map((c) => c.hub_id)).size}</div>
+            <div className="rounded-3xl border border-slate-200/80 bg-white/75 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-700/70 dark:bg-slate-900/60">
+              <div className="text-xs uppercase tracking-[0.24em] text-cyan-700 dark:text-cyan-300">HUBs</div>
+              <div className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-100">{new Set(coletasFiltradas.map((c) => c.hub_id)).size}</div>
             </div>
-            <div className="rounded-3xl border border-slate-200/80 bg-white/75 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur">
-              <div className="text-xs uppercase tracking-[0.24em] text-cyan-700">Abaixo meta</div>
-              <div className="mt-2 text-2xl font-black text-slate-950">{abaixoMeta.length}</div>
+            <div className="rounded-3xl border border-slate-200/80 bg-white/75 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-700/70 dark:bg-slate-900/60">
+              <div className="text-xs uppercase tracking-[0.24em] text-cyan-700 dark:text-cyan-300">Abaixo meta</div>
+              <div className="mt-2 text-2xl font-black text-slate-950 dark:text-slate-100">{abaixoMeta.length}</div>
             </div>
           </div>
         </div>
@@ -202,7 +202,7 @@ export function CalendarioPage() {
       </div>
 
       {/* Legenda de cores */}
-      <div className="flex flex-wrap items-center gap-4 mb-4 text-xs text-slate-600">
+      <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-slate-600 dark:text-slate-300">
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500" /> Meta atingida</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-500" /> Próximo da meta</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-500" /> Abaixo da meta</span>
