@@ -71,6 +71,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   } | null>(null);
 
   const [filtroStatus, setFiltroStatus] = useState<StatusAgendamento | ''>('');
+  const [buscaNome, setBuscaNome] = useState('');
 
   // Seleção múltipla
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -94,6 +95,8 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
       setSelectedIds(new Set());
       setCondutorSearch('');
       setSelectedCondutor('');
+      setBuscaNome('');
+      setFiltroStatus('');
     }
   }, [coleta]);
 
@@ -409,9 +412,16 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
     ? Math.round((compareceram / agendamentosAtivos.length) * 100)
     : 0;
 
-  const agendamentosFiltrados = filtroStatus
+  const agendamentosFiltrados = (filtroStatus
     ? agendamentosAtivos.filter((a) => a.status === filtroStatus)
-    : agendamentosAtivos;
+    : agendamentosAtivos
+  ).filter((a) => {
+    const termo = normalizarNome(buscaNome);
+    if (!termo) return true;
+    const nome = normalizarNome(a.condutor?.nome_completo || '');
+    const rota = normalizarNome(a.condutor?.rota_fixa?.sigla || '');
+    return nome.includes(termo) || rota.includes(termo);
+  });
 
   const condutoresDisponiveis = condutores
     .filter((cd) => !coleta.agendamentos?.some((a) => a.condutor_id === cd.id && a.status !== 'cancelado'))
@@ -749,7 +759,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
           </div>
 
           <div className="min-h-0 overflow-y-auto px-6 py-5">
-          <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
             <h3 className="text-sm font-semibold text-slate-700">
               Condutores {filtroStatus ? STATUS_AGENDAMENTO_LABELS[filtroStatus].toLowerCase() + 's' : 'agendados'} ({agendamentosFiltrados.length})
             </h3>
@@ -775,6 +785,26 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
                 <Download size={16} />
               </button>
             </div>
+          </div>
+
+          {/* Busca de condutores escalados */}
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              className="input pl-9 pr-9"
+              value={buscaNome}
+              onChange={(e) => setBuscaNome(e.target.value)}
+              placeholder="Pesquisar condutor por nome (ou rota)..."
+            />
+            {buscaNome && (
+              <button
+                onClick={() => setBuscaNome('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                title="Limpar busca"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
 
           {/* Barra de ações em lote */}
@@ -829,7 +859,11 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
 
           {agendamentosFiltrados.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-4">
-              {filtroStatus ? 'Nenhum condutor com este status.' : 'Nenhum condutor agendado'}
+              {buscaNome.trim()
+                ? 'Nenhum condutor encontrado para esta busca.'
+                : filtroStatus
+                  ? 'Nenhum condutor com este status.'
+                  : 'Nenhum condutor agendado'}
             </p>
           ) : (
             <div className="space-y-2">

@@ -1,4 +1,4 @@
-import { Menu, LogOut, Bell, Mail, KeyRound, UserPlus, X } from 'lucide-react';
+import { Menu, LogOut, Bell, Mail, KeyRound, UserPlus, X, Sun, Moon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth';
@@ -15,6 +15,8 @@ export function Topbar() {
   const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const tema = useUIStore((s) => s.tema);
+  const toggleTema = useUIStore((s) => s.toggleTema);
   const navigate = useNavigate();
   const [now, setNow] = useState(new Date());
 
@@ -96,6 +98,14 @@ export function Topbar() {
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(74,222,128,0.8)]" />
               <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-300">Tempo real</span>
             </div>
+            <button
+              className="btn-ghost p-2 text-slate-300 hover:bg-white/5 hover:text-white"
+              onClick={toggleTema}
+              title={tema === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+              aria-label={tema === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+            >
+              {tema === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
             <button
               className="btn-ghost p-2 relative text-slate-300 hover:bg-white/5 hover:text-white"
               onClick={abrirMensagens}
