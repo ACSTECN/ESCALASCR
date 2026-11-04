@@ -41,6 +41,14 @@ const normalizarNome = (value: string) =>
     .trim()
     .toLowerCase();
 
+const formatarCpf = (value: string | null | undefined) => {
+  const digits = (value || '').replace(/\D/g, '');
+  if (digits.length !== 11) return value || '';
+  return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+};
+
+const isCampinas = (value: string | null | undefined) => normalizarNome(value || '') === 'campinas';
+
 export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailDrawerProps) {
   const user = useAuthStore((s) => s.user);
   const canEdit = canWrite(user?.perfil);
@@ -563,19 +571,41 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
 
   const exportarAgendamentos = () => {
     if (!coleta) return;
-    const linhas = agendamentosAtivos.map((a, index) => ({
-      '#': index + 1,
-      'Condutor': a.condutor?.nome_completo || '',
-      'Rota': a.condutor?.rota_fixa?.sigla || '',
-      'CPF': a.condutor?.cpf || '',
-      'Telefone': a.condutor?.telefone || '',
-      'Integração': a.condutor?.fez_integracao ? 'Sim' : 'Não',
-      'Observação': a.condutor?.observacoes || '',
-      'Status': STATUS_AGENDAMENTO_LABELS[a.status],
-      'HUB': coleta.hub?.sigla || '',
-      'Data': formatDateBR(coleta.data_coleta),
-      'Horário': formatTime(coleta.horario),
-    }));
+
+    const exportarCampinas = isCampinas(coleta.hub?.cidade?.nome);
+
+    const linhas = exportarCampinas
+      ? [...agendamentosAtivos]
+          .sort((a, b) => {
+            const rotaA = (a.condutor?.rota_fixa?.sigla || 'BACKUP').trim().toUpperCase();
+            const rotaB = (b.condutor?.rota_fixa?.sigla || 'BACKUP').trim().toUpperCase();
+            if (rotaA === rotaB) {
+              return (a.condutor?.nome_completo || '').localeCompare(b.condutor?.nome_completo || '', 'pt-BR');
+            }
+            if (rotaA === 'BACKUP') return 1;
+            if (rotaB === 'BACKUP') return -1;
+            return rotaA.localeCompare(rotaB, 'pt-BR');
+          })
+          .map((a, index) => ({
+            '#': index + 1,
+            rota: (a.condutor?.rota_fixa?.sigla || 'BACKUP').trim().toUpperCase(),
+            MOTORISTA: a.condutor?.nome_completo || '',
+            CPF: formatarCpf(a.condutor?.cpf),
+            empresa: 'CR',
+          }))
+      : agendamentosAtivos.map((a, index) => ({
+          '#': index + 1,
+          'Condutor': a.condutor?.nome_completo || '',
+          'Rota': a.condutor?.rota_fixa?.sigla || '',
+          'CPF': a.condutor?.cpf || '',
+          'Telefone': a.condutor?.telefone || '',
+          'Integração': a.condutor?.fez_integracao ? 'Sim' : 'Não',
+          'Observação': a.condutor?.observacoes || '',
+          'Status': STATUS_AGENDAMENTO_LABELS[a.status],
+          'HUB': coleta.hub?.sigla || '',
+          'Data': formatDateBR(coleta.data_coleta),
+          'Horário': formatTime(coleta.horario),
+        }));
     const csv = toCSV(linhas);
     downloadFile(csv, `agendamentos_${coleta.hub?.sigla}_${coleta.data_coleta}.csv`);
   };
