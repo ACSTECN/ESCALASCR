@@ -49,6 +49,11 @@ const formatarCpf = (value: string | null | undefined) => {
 
 const isCampinas = (value: string | null | undefined) => normalizarNome(value || '') === 'campinas';
 
+const shouldUseCampinasExportLayout = (coleta: Coleta) => {
+  const hubSigla = (coleta.hub?.sigla || '').trim().toUpperCase();
+  return isCampinas(coleta.hub?.cidade?.nome) || hubSigla === 'HCPQ';
+};
+
 export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailDrawerProps) {
   const user = useAuthStore((s) => s.user);
   const canEdit = canWrite(user?.perfil);
@@ -572,7 +577,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   const exportarAgendamentos = () => {
     if (!coleta) return;
 
-    const exportarCampinas = isCampinas(coleta.hub?.cidade?.nome);
+    const exportarCampinas = shouldUseCampinasExportLayout(coleta);
 
     const linhas = exportarCampinas
       ? [...agendamentosAtivos]
