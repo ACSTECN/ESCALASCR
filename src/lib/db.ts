@@ -14,6 +14,9 @@ import type {
   StatusAgendamento,
   StatusInteresse,
   GmailStatus,
+  Grupo,
+  GrupoCondutor,
+  EntregadorAgenda,
 } from '@/types';
 
 // ============================================================
@@ -130,6 +133,7 @@ export const dbColetas = {
       .select(
         `*,
          hub:hubs(*, cidade:cidades(*)),
+         grupos:coleta_grupos(grupo_id),
          agendamentos:agendamentos(*, condutor:condutores(*, rota_fixa:rotas_fixas(*)))`
       )
       .gte('data_coleta', startDate)
@@ -143,6 +147,7 @@ export const dbColetas = {
       .select(
         `*,
          hub:hubs(*, cidade:cidades(*)),
+         grupos:coleta_grupos(grupo_id),
          agendamentos:agendamentos(*, condutor:condutores(*, rota_fixa:rotas_fixas(*)))`
       )
       .eq('data_coleta', date)
@@ -154,6 +159,7 @@ export const dbColetas = {
       .select(
         `*,
          hub:hubs(*, cidade:cidades(*)),
+         grupos:coleta_grupos(grupo_id),
          agendamentos:agendamentos(*, condutor:condutores(*, rota_fixa:rotas_fixas(*)))`
       )
       .eq('id', id)
@@ -166,6 +172,35 @@ export const dbColetas = {
     supabase.from('coletas').update(data).eq('id', id).select().single(),
 
   remove: (id: string) => supabase.from('coletas').delete().eq('id', id),
+
+  // Grupos liberados para esta coleta (elegibilidade do entregador)
+  listGrupos: (coletaId: string) =>
+    supabase
+      .from('coleta_grupos')
+      .select('grupo_id, grupo:grupos(id, nome)')
+      .eq('coleta_id', coletaId),
+
+  // Libera/bloqueia a coleta para um conjunto de grupos
+  setGruposLiberados: async (coletaId: string, grupoIds: string[]) => {
+    await supabase.from('coleta_grupos').delete().eq('coleta_id', coletaId);
+
+    if (grupoIds.length > 0) {
+      const { error } = await supabase
+        .from('coleta_grupos')
+        .insert(grupoIds.map((grupo_id) => ({ coleta_id: coletaId, grupo_id })));
+      if (error) return { error };
+    }
+
+    return supabase
+      .from('coletas')
+      .update({
+        liberado: grupoIds.length > 0,
+        liberado_em: grupoIds.length > 0 ? new Date().toISOString() : null,
+      })
+      .eq('id', coletaId)
+      .select()
+      .single();
+  },
 
   // Remove coletas que correspondem a uma meta (mesmo hub, dia da semana e horário)
   removeByMetaCriteria: async (hubId: string, diaSemana: number, horario: string) => {
@@ -336,6 +371,77 @@ export const dbInteresses = {
 
   remove: (id: string) => supabase.from('interesses_entregador').delete().eq('id', id),
 };
+
+// ============================================================
+// GRUPOS DE ENTREGADORES (eligibilidade para auto-agendamento)
+// ============================================================
+export const dbGrupos = {
+  list: () =>
+    supabase
+      .from('grupos')
+      .select('*, vinculos:grupo_condutores(condutor_id, condutor:condutores(nome_completo, cpf))')
+      .order('nome'),
+
+  listAtivos: () =>
+    supabase.from('grupos').select('*').eq('ativo', true).order('nome'),
+
+  create: (data: Partial<Grupo>) =>
+    supabase.from('grupos').insert(data).select().single(),
+
+  update: (id: string, data: Partial<Grupo>) =>
+    supabase.from('grupos').update(data).eq('id', id).select().single(),
+
+  remove: (id: string) => supabase.from('grupos').delete().eq('id', id),
+
+  listCondutores: (grupoId: string) =>
+    supabase
+      .from('grupo_condutores')
+      .select('*, condutor:condutores(*, hub:hubs(*))')
+      .eq('grupo_id', grupoId),
+
+  addCondutores: (grupoId: string, condutorIds: string[]) =>
+    supabase
+      .from('grupo_condutores')
+      .upsert(
+        condutorIds.map((condutor_id) => ({ grupo_id: grupoId, condutor_id })),
+        { onConflict: 'grupo_id,condutor_id', ignoreDuplicates: true }
+      ),
+
+  removeCondutor: (grupoId: string, condutorId: string) =>
+    supabase
+      .from('grupo_condutores')
+      .delete()
+      .eq('grupo_id', grupoId)
+      .eq('condutor_id', condutorId),
+
+  removeAllCondutores: (grupoId: string) =>
+    supabase.from('grupo_condutores').delete().eq('grupo_id', grupoId),
+};
+
+// ============================================================
+// LINK PUBLICO DO ENTREGADOR (auto-agendamento)
+// ============================================================
+export const dbEntregador = {
+  agenda: (nome: string, cpf: string, telefone: string) =>
+    supabase.rpc('entregador_agenda', {
+      p_nome: nome,
+      p_cpf: cpf,
+      p_telefone: telefone,
+    }),
+
+  agendar: (cpf: string, coletaId: string) =>
+    supabase.rpc('entregador_agendar', { p_cpf: cpf, p_coleta_id: coletaId }),
+
+  listaEspera: (nome: string, cpf: string, telefone: string, coletaId: string) =>
+    supabase.rpc('entregador_lista_espera', {
+      p_nome: nome,
+      p_cpf: cpf,
+      p_telefone: telefone,
+      p_coleta_id: coletaId,
+    }),
+};
+
+export type { EntregadorAgenda, Grupo, GrupoCondutor };
 
 // ============================================================
 // USUÁRIOS

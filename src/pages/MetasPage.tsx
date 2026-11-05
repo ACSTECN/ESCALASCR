@@ -35,6 +35,7 @@ export function MetasPage() {
     horario: '14:00',
     meta: 20,
     ativo: true,
+    travar_vagas: false,
   });
   const [diasSelecionados, setDiasSelecionados] = useState<number[]>([1]);
   const [periodo, setPeriodo] = useState({
@@ -70,10 +71,10 @@ export function MetasPage() {
   const openModal = (meta?: MetaColeta) => {
     setEditing(meta || null);
     if (meta) {
-      setForm({ hub_id: meta.hub_id, horario: meta.horario, meta: meta.meta, ativo: meta.ativo });
+      setForm({ hub_id: meta.hub_id, horario: meta.horario, meta: meta.meta, ativo: meta.ativo, travar_vagas: meta.travar_vagas });
       setDiasSelecionados([meta.dia_semana]);
     } else {
-      setForm({ hub_id: hubs[0]?.id || '', horario: '14:00', meta: 20, ativo: true });
+      setForm({ hub_id: hubs[0]?.id || '', horario: '14:00', meta: 20, ativo: true, travar_vagas: false });
       setDiasSelecionados([1]);
     }
     setModalOpen(true);
@@ -452,6 +453,20 @@ export function MetasPage() {
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={form.ativo} onChange={(e) => setForm({ ...form, ativo: e.target.checked })} />
             <span className="text-sm text-slate-700">Ativo</span>
+          </label>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={form.travar_vagas}
+              onChange={(e) => setForm({ ...form, travar_vagas: e.target.checked })}
+            />
+            <span className="text-sm text-slate-700">
+              Travar vagas na meta
+              <span className="block text-xs text-slate-500">
+                No link do entregador, o auto-agendamento é bloqueado ao atingir a meta desta coleta.
+              </span>
+            </span>
           </label>
           <div className="flex justify-end gap-2 pt-2">
             <button className="btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>

@@ -12,6 +12,7 @@ import { CidadesHubsPage } from '@/pages/CidadesHubsPage';
 import { HistoricoPage } from '@/pages/HistoricoPage';
 import { ConfiguracoesPage } from '@/pages/ConfiguracoesPage';
 import { ListaEsperaPage } from '@/pages/ListaEsperaPage';
+import { GruposPage } from '@/pages/GruposPage';
 import { InteresseEntregadorPage } from '@/pages/InteresseEntregadorPage';
 import { MensagensMagalogPage } from '@/pages/MensagensMagalogPage';
 import { useInitAuth } from '@/hooks/useAuth';
@@ -45,6 +46,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute roles={['admin', 'supervisor', 'operador']}>
               <CondutoresPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="grupos"
+          element={
+            <ProtectedRoute roles={['admin', 'supervisor', 'operador']}>
+              <GruposPage />
             </ProtectedRoute>
           }
         />

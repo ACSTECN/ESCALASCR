@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload, Download, Square, CheckSquare, ArrowRightLeft, Search } from 'lucide-react';
-import type { Coleta, Condutor, Agendamento, StatusAgendamento } from '@/types';
-import { calcColetaStats, dbAgendamentos, dbCondutores, dbColetas } from '@/lib/db';
+import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload, Download, Square, CheckSquare, ArrowRightLeft, Search, Layers, Lock } from 'lucide-react';
+import type { Coleta, Condutor, Agendamento, Grupo, StatusAgendamento } from '@/types';
+import { calcColetaStats, dbAgendamentos, dbCondutores, dbColetas, dbGrupos } from '@/lib/db';
 import { formatDateBR, formatTime, getOccupancyColor, colorClasses, toCSV, downloadFile } from '@/utils';
 import { STATUS_AGENDAMENTO_LABELS, STATUS_COLETA_LABELS } from '@/types';
 import { Badge } from '@/components/ui/Badge';
@@ -14,6 +14,7 @@ interface ColetaDetailDrawerProps {
   coleta: Coleta | null;
   onClose: () => void;
   onUpdated: () => void;
+  onRefresh?: () => void;
 }
 
 const statusColor: Record<StatusAgendamento, string> = {
@@ -54,7 +55,7 @@ const shouldUseCampinasExportLayout = (coleta: Coleta) => {
   return isCampinas(coleta.hub?.cidade?.nome) || hubSigla === 'HCPQ';
 };
 
-export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailDrawerProps) {
+export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: ColetaDetailDrawerProps) {
   const user = useAuthStore((s) => s.user);
   const canEdit = canWrite(user?.perfil);
 
@@ -86,6 +87,13 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   const [filtroStatus, setFiltroStatus] = useState<StatusAgendamento | ''>('');
   const [buscaNome, setBuscaNome] = useState('');
 
+  // Liberação da agenda para grupos (elegibilidade do entregador)
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [gruposLiberados, setGruposLiberados] = useState<string[]>([]);
+  const [salvandoLiberacao, setSalvandoLiberacao] = useState(false);
+  const [travarVagas, setTravarVagas] = useState(false);
+  const [salvandoTrava, setSalvandoTrava] = useState(false);
+
   // Seleção múltipla
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<StatusAgendamento>('agendado');
@@ -111,6 +119,15 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
       setBuscaNome('');
       setFiltroStatus('');
     }
+  }, [coleta]);
+
+  useEffect(() => {
+    dbGrupos.listAtivos().then(({ data }) => setGrupos((data as Grupo[]) || []));
+  }, []);
+
+  useEffect(() => {
+    setGruposLiberados((coleta?.grupos || []).map((g) => g.grupo_id));
+    setTravarVagas(coleta?.travar_vagas ?? false);
   }, [coleta]);
 
   if (!coleta) return null;
@@ -215,6 +232,38 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
   const iniciarEdicaoMeta = () => {
     setNovaMeta(coleta.meta);
     setEditingMeta(true);
+  };
+
+  const salvarLiberacao = async (ids: string[]) => {
+    if (!coleta) return;
+    const anterior = gruposLiberados;
+    setGruposLiberados(ids);
+    setSalvandoLiberacao(true);
+    const { error } = await dbColetas.setGruposLiberados(coleta.id, ids);
+    setSalvandoLiberacao(false);
+    if (error) {
+      setGruposLiberados(anterior);
+      alert('Não foi possível salvar a liberação agora. Tente novamente.');
+      return;
+    }
+    onRefresh?.();
+  };
+
+  const toggleGrupo = (grupoId: string) => {
+    const ids = gruposLiberados.includes(grupoId)
+      ? gruposLiberados.filter((id) => id !== grupoId)
+      : [...gruposLiberados, grupoId];
+    salvarLiberacao(ids);
+  };
+
+  const toggleTravarVagas = async () => {
+    if (!coleta) return;
+    const novo = !travarVagas;
+    setTravarVagas(novo);
+    setSalvandoTrava(true);
+    await dbColetas.update(coleta.id, { travar_vagas: novo });
+    setSalvandoTrava(false);
+    onRefresh?.();
   };
 
   const excluirColeta = async () => {
@@ -649,6 +698,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
               <Clock size={14} /> {formatDateBR(coleta.data_coleta)} • {formatTime(coleta.horario)}
             </span>
             <Badge variant={coleta.status === 'finalizada' ? 'gray' : 'info'}>{STATUS_COLETA_LABELS[coleta.status]}</Badge>
+            {gruposLiberados.length > 0 && <Badge variant="success">LIBERADA</Badge>}
           </div>
         </div>
 
@@ -789,6 +839,76 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated }: ColetaDetailD
                 >
                   <Upload size={16} /> Importar e agendar em lote
                 </button>
+              </div>
+            )}
+
+            {canEdit && (
+              <div className="px-6 py-4 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="label mb-0 inline-flex items-center gap-1.5">
+                    <Layers size={14} className="text-brand-500" /> Liberar para entregadores
+                  </label>
+                  {salvandoLiberacao && <span className="text-[11px] text-slate-400">salvando...</span>}
+                </div>
+                <p className="text-xs text-slate-500 mb-3">
+                  Marque os grupos que podem ver e pegar esta agenda no link do entregador. Ao liberar,
+                  a coleta fica disponível na hora para o grupo.
+                </p>
+
+                {grupos.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
+                    Nenhum grupo cadastrado. Crie grupos em <strong>Grupos</strong> para liberar agendas.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {grupos.map((g) => {
+                      const ativo = gruposLiberados.includes(g.id);
+                      return (
+                        <button
+                          key={g.id}
+                          type="button"
+                          disabled={salvandoLiberacao}
+                          onClick={() => toggleGrupo(g.id)}
+                          className={`w-full flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm text-left transition disabled:opacity-60 ${
+                            ativo
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          {ativo ? (
+                            <CheckSquare size={16} className="text-emerald-600 flex-shrink-0" />
+                          ) : (
+                            <Square size={16} className="text-slate-300 flex-shrink-0" />
+                          )}
+                          <span className="truncate font-medium">{g.nome}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {gruposLiberados.length > 0 && coleta.liberado_em && (
+                  <p className="text-[11px] text-emerald-600 mt-2">
+                    Liberada em {new Date(coleta.liberado_em).toLocaleString('pt-BR')}
+                  </p>
+                )}
+
+                <label className="mt-4 flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={travarVagas}
+                    disabled={salvandoTrava}
+                    onChange={toggleTravarVagas}
+                  />
+                  <span className="text-xs text-slate-600">
+                    <span className="inline-flex items-center gap-1 font-medium text-slate-700">
+                      <Lock size={12} /> Travar vagas na meta
+                    </span>
+                    <br />
+                    No link do entregador, o auto-agendamento é bloqueado ao atingir a meta.
+                  </span>
+                </label>
               </div>
             )}
           </div>

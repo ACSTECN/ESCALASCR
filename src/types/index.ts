@@ -76,6 +76,9 @@ export interface Coleta {
   horario: string;
   meta: number;
   status: StatusColeta;
+  liberado: boolean;
+  liberado_em: string | null;
+  travar_vagas: boolean;
   is_demo: boolean;
   created_by: string | null;
   created_at: string;
@@ -83,6 +86,7 @@ export interface Coleta {
   // joined
   hub?: Hub;
   agendamentos?: Agendamento[];
+  grupos?: { grupo_id: string }[];
   // calculado
   agendados_count?: number;
   vagas_disponiveis?: number;
@@ -96,6 +100,7 @@ export interface MetaColeta {
   horario: string;
   meta: number;
   ativo: boolean;
+  travar_vagas: boolean;
   created_at: string;
   updated_at: string;
   hub?: Hub;
@@ -131,6 +136,64 @@ export interface InteresseEntregador {
   updated_at: string;
   // joined
   hub?: Hub;
+}
+
+// ============================================================
+// GRUPOS DE ENTREGADORES (elegibilidade para auto-agendamento)
+// ============================================================
+export interface Grupo {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  observacao: string | null;
+  created_at: string;
+  updated_at: string;
+  // joined
+  vinculos?: {
+    condutor_id: string;
+    condutor?: { nome_completo: string; cpf: string | null } | null;
+  }[];
+  condutores_count?: number;
+}
+
+export interface GrupoCondutor {
+  id: string;
+  grupo_id: string;
+  condutor_id: string;
+  created_at: string;
+  // joined
+  condutor?: Condutor;
+}
+
+// ============================================================
+// LINK PUBLICO DO ENTREGADOR (auto-agendamento)
+// ============================================================
+export interface EntregadorSlot {
+  coleta_id: string;
+  data_coleta: string;
+  horario: string;
+  horario_label: string;
+  hub_id: string;
+  hub_sigla: string;
+  hub_nome: string;
+  cidade_nome: string | null;
+  disponivel: boolean;
+  agendado: boolean;
+  agendamento_id: string | null;
+  na_lista_espera?: boolean;
+}
+
+export interface EntregadorAgenda {
+  encontrado: boolean;
+  motivo?: string;
+  condutor?: {
+    id: string;
+    nome: string;
+    cpf: string;
+    telefone: string | null;
+    hub_id: string | null;
+  };
+  slots?: EntregadorSlot[];
 }
 
 export interface Usuario {
