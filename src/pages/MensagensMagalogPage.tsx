@@ -201,7 +201,7 @@ export function MensagensMagalogPage() {
       if (termo) {
         const alvo = `${m.nome || ''} ${m.cpf || ''} ${m.telefone || ''} ${m.assunto || ''} ${
           m.senha || ''
-        }`.toLowerCase();
+        } ${m.corpo || ''}`.toLowerCase();
         if (!alvo.includes(termo)) return false;
       }
       return true;
