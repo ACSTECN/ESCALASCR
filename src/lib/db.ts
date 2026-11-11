@@ -600,10 +600,11 @@ export const dbUsuarios = {
 // Chama uma Edge Function autenticada com o token do usuário logado.
 const chamarEdge = async <T,>(
   nomeFuncao: string,
-  body: Record<string, unknown> = {}
+  body: Record<string, unknown> = {},
+  timeoutMs = 60000
 ): Promise<{ data: T | null; error: Error | null }> => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const { data: session } = await supabase.auth.getSession();
@@ -682,11 +683,26 @@ export const dbMensagensMagalog = {
   removeMany: (ids: string[]) => supabase.from('mensagens_magalog').delete().in('id', ids),
 };
 
+export interface GmailSyncResultado {
+  success: boolean;
+  query: string;
+  backfill: boolean;
+  encontradas: number;
+  processadas: number;
+  novas: number;
+  atualizadas: number;
+  erros: string[];
+  restantes: boolean;
+  total_mensagens: number;
+}
+
 export const dbGmail = {
   status: () => chamarEdge<GmailStatus>('gmail-status'),
   gerarUrlAutorizacao: () => chamarEdge<{ url: string }>('gmail-auth-url'),
-  sincronizar: () =>
-    chamarEdge<{ encontradas: number; novas: number; erros: string[] }>('gmail-sync', {}),
+  sincronizar: () => chamarEdge<GmailSyncResultado>('gmail-sync', {}),
+  // Varredura completa do histórico (retomável: chamar de novo continua de onde parou)
+  importarHistorico: (reiniciar = false) =>
+    chamarEdge<GmailSyncResultado>('gmail-sync', { backfill: true, reiniciar }, 180000),
   desconectar: () => chamarEdge<{ success: boolean }>('gmail-disconnect'),
 };
 

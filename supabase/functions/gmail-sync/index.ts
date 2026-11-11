@@ -331,82 +331,154 @@ Deno.serve(async (req) => {
 
     const { data: estado } = await supabase
       .from('gmail_sync_state')
-      .select('last_sync_at')
+      .select('last_sync_at, backfill_token, backfill_ativo')
       .eq('id', 1)
       .maybeSingle();
 
-    const dias = estado?.last_sync_at ? 3 : 60;
+    // backfill = varredura completa do histórico (retomável entre execuções)
+    const backfill = corpoReq?.backfill === true;
+    const reiniciarHistorico = corpoReq?.reiniciar === true;
+
     const assuntosOr = ASSUNTOS.map((a) => `subject:"${a}"`).join(' ');
-    const query =
-      (corpoReq?.query as string) ||
-      `from:${REMETENTE} {${assuntosOr}} newer_than:${dias}d`;
+    const queryBase = `from:${REMETENTE} {${assuntosOr}}`;
 
-    const listRes = await fetch(
-      `${GMAIL_API}/messages?maxResults=100&q=${encodeURIComponent(query)}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    const lista = await listRes.json();
-
-    if (!listRes.ok) {
-      const detalhe = lista?.error?.message || 'Falha ao consultar a Gmail API.';
-      await registrarFalha(detalhe);
-      return json({ error: detalhe, query }, 400);
+    let query: string;
+    if (typeof corpoReq?.query === 'string' && corpoReq.query.trim()) {
+      query = corpoReq.query.trim();
+    } else if (backfill) {
+      // sem "newer_than": varre todo o histórico da conta
+      query = queryBase;
+    } else {
+      const dias = estado?.last_sync_at ? 3 : 60;
+      query = `${queryBase} newer_than:${dias}d`;
     }
 
-    const ids: string[] = (lista.messages ?? []).map((m: { id: string }) => m.id);
+    // Retoma a paginação anterior quando o histórico ficou pela metade
+    let pageToken: string | undefined;
+    if (backfill && !reiniciarHistorico && estado?.backfill_ativo && estado?.backfill_token) {
+      pageToken = estado.backfill_token;
+    }
+
+    if (backfill) {
+      await supabase
+        .from('gmail_sync_state')
+        .update({
+          backfill_ativo: true,
+          backfill_token: pageToken ?? null,
+          backfill_iniciado_em: reiniciarHistorico || !estado?.backfill_ativo
+            ? new Date().toISOString()
+            : undefined,
+        })
+        .eq('id', 1);
+    }
+
+    // Limites por execução: evitam estourar o tempo máximo da Edge Function
+    const LIMITE_POR_EXECUCAO = backfill ? 600 : 100;
+    const ORCAMENTO_MS = 100_000;
+    const inicio = Date.now();
+
     let novas = 0;
     let atualizadas = 0;
+    let processadas = 0;
+    let encontradas = 0;
     const erros: string[] = [];
+    let proximoToken: string | undefined;
+    let continuar = true;
 
-    for (const id of ids) {
-      try {
-        const msgRes = await fetch(`${GMAIL_API}/messages/${id}?format=full`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        if (!msgRes.ok) {
-          erros.push(`Mensagem ${id}: HTTP ${msgRes.status}`);
-          continue;
-        }
-        const msg = await msgRes.json();
+    while (continuar) {
+      const url = new URL(`${GMAIL_API}/messages`);
+      url.searchParams.set('maxResults', '100');
+      url.searchParams.set('q', query);
+      if (pageToken) url.searchParams.set('pageToken', pageToken);
 
-        const headers: { name: string; value: string }[] = msg.payload?.headers ?? [];
-        const header = (nome: string) =>
-          headers.find((h) => h.name.toLowerCase() === nome.toLowerCase())?.value ?? '';
+      const listRes = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const lista = await listRes.json();
 
-        const assunto = header('Subject');
-        const { texto, html } = extrairTexto(msg.payload);
-        const corpo = escolherMelhorCorpoEmail(texto, html);
-        const campos = extrairCampos(assunto, corpo);
-
-        const registro = {
-          gmail_message_id: msg.id,
-          gmail_thread_id: msg.threadId ?? null,
-          tipo: classificar(assunto),
-          assunto: assunto || null,
-          remetente: header('From') || null,
-          nome: campos.nome,
-          cpf: campos.cpf,
-          telefone: campos.telefone,
-          senha: campos.senha,
-          corpo: corpo.slice(0, 20000),
-          recebido_em: header('Date') ? new Date(header('Date')).toISOString() : null,
-        };
-
-        const { data: salvo, error } = await supabase
-          .from('mensagens_magalog')
-          .upsert(registro, { onConflict: 'gmail_message_id', ignoreDuplicates: false })
-          .select('id, created_at, updated_at');
-
-        if (error) {
-          erros.push(`Mensagem ${id}: ${error.message}`);
-          continue;
-        }
-        const linha = salvo?.[0];
-        if (linha && linha.created_at === linha.updated_at) novas++;
-        else atualizadas++;
-      } catch (e) {
-        erros.push(`Mensagem ${id}: ${e instanceof Error ? e.message : 'erro'}`);
+      if (!listRes.ok) {
+        const detalhe = lista?.error?.message || 'Falha ao consultar a Gmail API.';
+        await registrarFalha(detalhe);
+        return json({ error: detalhe, query }, 400);
       }
+
+      const ids: string[] = (lista.messages ?? []).map((m: { id: string }) => m.id);
+      proximoToken = lista.nextPageToken || undefined;
+      encontradas += ids.length;
+
+      for (const id of ids) {
+        try {
+          const msgRes = await fetch(`${GMAIL_API}/messages/${id}?format=full`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (!msgRes.ok) {
+            erros.push(`Mensagem ${id}: HTTP ${msgRes.status}`);
+            continue;
+          }
+          const msg = await msgRes.json();
+
+          const headers: { name: string; value: string }[] = msg.payload?.headers ?? [];
+          const header = (nome: string) =>
+            headers.find((h) => h.name.toLowerCase() === nome.toLowerCase())?.value ?? '';
+
+          const assunto = header('Subject');
+          const { texto, html } = extrairTexto(msg.payload);
+          const corpo = escolherMelhorCorpoEmail(texto, html);
+          const campos = extrairCampos(assunto, corpo);
+
+          const registro = {
+            gmail_message_id: msg.id,
+            gmail_thread_id: msg.threadId ?? null,
+            tipo: classificar(assunto),
+            assunto: assunto || null,
+            remetente: header('From') || null,
+            nome: campos.nome,
+            cpf: campos.cpf,
+            telefone: campos.telefone,
+            senha: campos.senha,
+            corpo: corpo.slice(0, 20000),
+            recebido_em: header('Date') ? new Date(header('Date')).toISOString() : null,
+          };
+
+          const { data: salvo, error } = await supabase
+            .from('mensagens_magalog')
+            .upsert(registro, { onConflict: 'gmail_message_id', ignoreDuplicates: false })
+            .select('id, created_at, updated_at');
+
+          if (error) {
+            erros.push(`Mensagem ${id}: ${error.message}`);
+            continue;
+          }
+          const linha = salvo?.[0];
+          if (linha && linha.created_at === linha.updated_at) novas++;
+          else atualizadas++;
+        } catch (e) {
+          erros.push(`Mensagem ${id}: ${e instanceof Error ? e.message : 'erro'}`);
+        }
+      }
+
+      processadas += ids.length;
+      pageToken = proximoToken;
+
+      const semMaisPaginas = !proximoToken;
+      const estourouLimite = processadas >= LIMITE_POR_EXECUCAO;
+      const estourouTempo = Date.now() - inicio > ORCAMENTO_MS;
+
+      // No modo normal (incremental) processa apenas a primeira página
+      continuar =
+        backfill && !semMaisPaginas && !estourouLimite && !estourouTempo;
+    }
+
+    const restantes = backfill ? !!proximoToken : false;
+
+    if (backfill) {
+      await supabase
+        .from('gmail_sync_state')
+        .update({
+          backfill_ativo: restantes,
+          backfill_token: proximoToken ?? null,
+        })
+        .eq('id', 1);
     }
 
     const { count: total } = await supabase
@@ -426,10 +498,13 @@ Deno.serve(async (req) => {
     return json({
       success: true,
       query,
-      encontradas: ids.length,
+      backfill,
+      encontradas,
+      processadas,
       novas,
       atualizadas,
       erros,
+      restantes,
       total_mensagens: total ?? 0,
     });
   } catch (err) {

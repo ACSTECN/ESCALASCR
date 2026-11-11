@@ -17,6 +17,7 @@ import {
   Clock,
   X,
   Eye,
+  History,
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
@@ -57,6 +58,7 @@ export function MensagensMagalogPage() {
   const [status, setStatus] = useState<GmailStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
+  const [importando, setImportando] = useState(false);
   const [conectando, setConectando] = useState(false);
   const [aviso, setAviso] = useState<{ texto: string; ok: boolean } | null>(null);
   const [aba, setAba] = useState<Aba>('todas');
@@ -145,6 +147,49 @@ export function MensagensMagalogPage() {
       ok: true,
     });
     load();
+  };
+
+  // Varredura completa do histórico: repete a chamada até não restar páginas.
+  // É seguro repetir: o salvamento é por id da mensagem, não duplica.
+  const importarHistorico = async () => {
+    setImportando(true);
+    setAviso({ texto: 'Varrendo o histórico da conta Gmail... isso pode levar alguns minutos.', ok: true });
+
+    let totalEncontradas = 0;
+    let totalNovas = 0;
+    let continuar = true;
+    let interrompido = false;
+
+    try {
+      for (let rodada = 0; rodada < 30 && continuar; rodada += 1) {
+        const { data, error } = await dbGmail.importarHistorico(false);
+        if (error) {
+          setAviso({ texto: `Importação interrompida: ${error.message}`, ok: false });
+          interrompido = true;
+          break;
+        }
+        totalEncontradas += data?.encontradas ?? 0;
+        totalNovas += data?.novas ?? 0;
+        continuar = !!data?.restantes;
+        setAviso({
+          texto: `Importando histórico... ${totalEncontradas} e-mail(s) lido(s), ${totalNovas} novo(s) até agora.`,
+          ok: true,
+        });
+        load();
+      }
+
+      if (!interrompido) {
+        setAviso({
+          texto: continuar
+            ? `Importação parcial: ${totalEncontradas} e-mail(s) lido(s), ${totalNovas} novo(s). Clique de novo para continuar.`
+            : `Histórico importado: ${totalEncontradas} e-mail(s) lido(s), ${totalNovas} novo(s).`,
+          ok: true,
+        });
+      }
+    } finally {
+      setImportando(false);
+      load();
+    }
   };
 
   const filtradas = useMemo(() => {
@@ -247,10 +292,21 @@ export function MensagensMagalogPage() {
               Exportar
             </button>
             {admin && (
-              <button className="btn-primary" onClick={sincronizar} disabled={sincronizando}>
-                <RefreshCw size={16} className={sincronizando ? 'animate-spin' : ''} />
-                {sincronizando ? 'Sincronizando...' : 'Sincronizar agora'}
-              </button>
+              <>
+                <button
+                  className="btn-secondary"
+                  onClick={importarHistorico}
+                  disabled={importando || sincronizando}
+                  title="Busca todos os e-mails já recebidos na conta monitorada, desde o início"
+                >
+                  <History size={16} className={importando ? 'animate-spin' : ''} />
+                  {importando ? 'Importando histórico...' : 'Importar histórico'}
+                </button>
+                <button className="btn-primary" onClick={sincronizar} disabled={sincronizando || importando}>
+                  <RefreshCw size={16} className={sincronizando ? 'animate-spin' : ''} />
+                  {sincronizando ? 'Sincronizando...' : 'Sincronizar agora'}
+                </button>
+              </>
             )}
           </div>
         }
