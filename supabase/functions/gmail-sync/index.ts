@@ -200,8 +200,8 @@ const classificar = (assunto: string): 'novo_condutor' | 'reenvio_senha' | 'outr
 
 const extrairCampos = (assunto: string, corpo: string) => ({
   nome: capturar(corpo, [
-    // Formato MAGALOG: "Prezado NOME COMPLETO," — testado PRIMEIRO
-    /prezado\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s']{2,80}?)\s*[,.;]/i,
+    // Formato MAGALOG: "Prezado(a) NOME COMPLETO," — testado PRIMEIRO
+    /prezado(?:a)?\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s']{2,80}?)\s*[,.;:]/i,
     /nome\s*(?:completo|do\s+condutor|do\s+entregador)?\s*[:\-]\s*([^\n\r<]+)/i,
     /(?:condutor|entregador|colaborador)\s*[:\-]\s*([^\n\r<]+)/i,
   ]),
@@ -210,8 +210,9 @@ const extrairCampos = (assunto: string, corpo: string) => ({
     /(?:telefone|celular|fone|whatsapp|contato)\s*[:\-]?\s*(\+?\d[\d\s().-]{7,})/i,
   ]),
   senha: capturar(corpo, [
+    // Formato MAGALOG: "A sua senha provisória é SENHA"
+    /senha[^<\n]{0,40}?[ée]\s+([A-Za-z0-9@#$%&*!._-]{3,40})/i,
     /(?:senha|password|chave\s*(?:de\s*acesso)?)\s*[:\-]?\s*([A-Za-z0-9@#$%&*!._-]{3,40})/i,
-    // assunto do reenvio pode confirmar que existe senha no corpo
     assunto.toLowerCase().includes('senha') ? /([A-Za-z0-9@#$%&*!._-]{6,40})/ : /(?!)/,
   ]),
 });
