@@ -200,10 +200,10 @@ const classificar = (assunto: string): 'novo_condutor' | 'reenvio_senha' | 'outr
 
 const extrairCampos = (assunto: string, corpo: string) => ({
   nome: capturar(corpo, [
+    // Formato MAGALOG: "Prezado NOME COMPLETO," — testado PRIMEIRO
+    /prezado\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s']{2,80}?)\s*[,.;]/i,
     /nome\s*(?:completo|do\s+condutor|do\s+entregador)?\s*[:\-]\s*([^\n\r<]+)/i,
     /(?:condutor|entregador|colaborador)\s*[:\-]\s*([^\n\r<]+)/i,
-    // Formato MAGALOG: "Prezado NOME COMPLETO,"
-    /prezado\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s']{2,80}?)\s*[,.;]/i,
   ]),
   cpf: capturar(corpo, [/(\d{3}\.?\d{3}\.?\d{3}\s*-?\s*\d{2})/]),
   telefone: capturar(corpo, [
