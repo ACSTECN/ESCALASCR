@@ -162,7 +162,8 @@ export function MensagensMagalogPage() {
 
     try {
       for (let rodada = 0; rodada < 30 && continuar; rodada += 1) {
-        const { data, error } = await dbGmail.importarHistorico(false);
+        // A primeira rodada reinicia do zero; as demais continuam de onde parou.
+        const { data, error } = await dbGmail.importarHistorico(rodada === 0);
         if (error) {
           setAviso({ texto: `Importação interrompida: ${error.message}`, ok: false });
           interrompido = true;

@@ -346,8 +346,9 @@ Deno.serve(async (req) => {
     if (typeof corpoReq?.query === 'string' && corpoReq.query.trim()) {
       query = corpoReq.query.trim();
     } else if (backfill) {
-      // sem "newer_than": varre todo o histórico da conta
-      query = queryBase;
+      // sem "newer_than" e com in:anywhere: varre TODO o histórico da conta,
+      // incluindo Spam e Lixeira, onde e-mails antigos podem ter parado.
+      query = `${queryBase} in:anywhere`;
     } else {
       const dias = estado?.last_sync_at ? 3 : 60;
       query = `${queryBase} newer_than:${dias}d`;
