@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload, Download, Square, CheckSquare, ArrowRightLeft, Search, Layers, Lock } from 'lucide-react';
+import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload, Download, Square, CheckSquare, ArrowRightLeft, Search, Layers, Lock, UserPlus } from 'lucide-react';
 import type { Coleta, Condutor, Agendamento, Grupo, StatusAgendamento } from '@/types';
-import { calcColetaStats, dbAgendamentos, dbCondutores, dbColetas, dbGrupos } from '@/lib/db';
+import { calcColetaStats, dbAgendamentos, dbCondutores, dbColetas, dbGrupos, dbMensagensMagalog } from '@/lib/db';
 import { formatDateBR, formatTime, getOccupancyColor, colorClasses, toCSV, downloadFile } from '@/utils';
 import { STATUS_AGENDAMENTO_LABELS, STATUS_COLETA_LABELS } from '@/types';
 import { Badge } from '@/components/ui/Badge';
@@ -42,6 +42,20 @@ const normalizarNome = (value: string) =>
     .trim()
     .toLowerCase();
 
+const normalizarChaveNome = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+const normalizarChaveCpf = (value: string | null | undefined) => {
+  const digits = (value || '').replace(/\D/g, '');
+  return digits.length === 11 ? digits : '';
+};
+
 const formatarCpf = (value: string | null | undefined) => {
   const digits = (value || '').replace(/\D/g, '');
   if (digits.length !== 11) return value || '';
@@ -77,6 +91,16 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
     integracoes: '',
   });
   const [importing, setImporting] = useState(false);
+  const [importandoAtivos, setImportandoAtivos] = useState(false);
+  const [resultadoImportacaoAtivos, setResultadoImportacaoAtivos] = useState<{
+    hub: string;
+    encontrados: number;
+    agendados: number;
+    jaNaColeta: number;
+    semMensagem: number;
+    ambiguos: number;
+    erros: string[];
+  } | null>(null);
   const [importResult, setImportResult] = useState<{
     total: number;
     agendados: number;
@@ -321,6 +345,121 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
     }
 
     return { total, resultados, erros };
+  };
+
+  const importarAtivosDoHub = async () => {
+    if (!coleta || !canEdit || importandoAtivos) return;
+    setImportandoAtivos(true);
+    setResultadoImportacaoAtivos(null);
+
+    const resultado = {
+      hub: coleta.hub?.sigla || 'HUB da coleta',
+      encontrados: 0,
+      agendados: 0,
+      jaNaColeta: 0,
+      semMensagem: 0,
+      ambiguos: 0,
+      erros: [] as string[],
+    };
+
+    try {
+      const [
+        { data: condutoresData, error: condutoresError },
+        { data: mensagensData, error: mensagensError },
+        { data: agendamentosData, error: agendamentosError },
+      ] = await Promise.all([
+        dbCondutores.listAtivos(),
+        dbMensagensMagalog.listComSenhaParaImportacao(),
+        dbAgendamentos.listByColeta(coleta.id),
+      ]);
+
+      if (condutoresError) throw new Error(`Falha ao carregar condutores: ${condutoresError.message}`);
+      if (mensagensError) throw new Error(`Falha ao consultar mensagens MAGALOG: ${mensagensError.message}`);
+      if (agendamentosError) throw new Error(`Falha ao conferir a coleta: ${agendamentosError.message}`);
+
+      const candidatos = ((condutoresData as Condutor[]) || []).filter(
+        (cd) => cd.hub_id === coleta.hub_id && cd.status === 'ativo' && !cd.fez_integracao
+      );
+      const mensagens = mensagensData || [];
+      const cpfsComSenha = new Set<string>();
+      const nomesComSenha = new Set<string>();
+      const cpfsPorNome = new Map<string, Set<string>>();
+
+      for (const mensagem of mensagens) {
+        const cpf = normalizarChaveCpf(mensagem.cpf);
+        const nome = normalizarChaveNome(mensagem.nome || '');
+        if (cpf) cpfsComSenha.add(cpf);
+        if (nome) {
+          nomesComSenha.add(nome);
+          if (cpf) {
+            const cpfs = cpfsPorNome.get(nome) || new Set<string>();
+            cpfs.add(cpf);
+            cpfsPorNome.set(nome, cpfs);
+          }
+        }
+      }
+
+      const quantidadePorNome = new Map<string, number>();
+      for (const cd of candidatos) {
+        const nome = normalizarChaveNome(cd.nome_completo);
+        if (nome) quantidadePorNome.set(nome, (quantidadePorNome.get(nome) || 0) + 1);
+      }
+
+      const encontrados: Condutor[] = [];
+      for (const cd of candidatos) {
+        const cpf = normalizarChaveCpf(cd.cpf);
+        const nome = normalizarChaveNome(cd.nome_completo);
+
+        if (cpf && cpfsComSenha.has(cpf)) {
+          encontrados.push(cd);
+          continue;
+        }
+
+        if (!nome || !nomesComSenha.has(nome)) {
+          resultado.semMensagem++;
+          continue;
+        }
+
+        const cpfsNasMensagens = cpfsPorNome.get(nome) || new Set<string>();
+        const conflitoCpf = !!cpf && cpfsNasMensagens.size > 0;
+        if ((quantidadePorNome.get(nome) || 0) !== 1 || cpfsNasMensagens.size > 1 || conflitoCpf) {
+          resultado.ambiguos++;
+          continue;
+        }
+
+        encontrados.push(cd);
+      }
+
+      resultado.encontrados = encontrados.length;
+      const agendamentosExistentes = (agendamentosData as Agendamento[]) || [];
+      const idsJaNaColeta = new Set(agendamentosExistentes.map((ag) => ag.condutor_id));
+      const novos = encontrados.filter((cd) => !idsJaNaColeta.has(cd.id));
+      resultado.jaNaColeta = encontrados.length - novos.length;
+
+      for (let inicio = 0; inicio < novos.length; inicio += 100) {
+        const lote = novos.slice(inicio, inicio + 100);
+        const { data, error } = await dbAgendamentos.createMany(
+          lote.map((cd) => ({
+            coleta_id: coleta.id,
+            condutor_id: cd.id,
+            status: 'agendado' as StatusAgendamento,
+            created_by: user?.id || null,
+          }))
+        );
+
+        if (error) {
+          resultado.erros.push(`Lote ${Math.floor(inicio / 100) + 1}: ${error.message}`);
+        } else {
+          resultado.agendados += data?.length ?? lote.length;
+        }
+      }
+    } catch (error) {
+      resultado.erros.push(error instanceof Error ? error.message : 'Falha inesperada na importação.');
+    } finally {
+      setResultadoImportacaoAtivos(resultado);
+      setImportandoAtivos(false);
+      if (resultado.agendados > 0) onUpdated();
+    }
   };
 
   const handleImport = async () => {
@@ -839,6 +978,36 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
                 >
                   <Upload size={16} /> Importar e agendar em lote
                 </button>
+                <button
+                  className="btn-secondary w-full mt-2"
+                  onClick={importarAtivosDoHub}
+                  disabled={importandoAtivos}
+                  title="Agenda os condutores ativos e sem integração deste HUB que tenham mensagem MAGALOG com senha"
+                >
+                  <UserPlus size={16} className={importandoAtivos ? 'animate-pulse' : ''} />
+                  {importandoAtivos ? 'Importando ativos...' : 'Importar ativos do HUB'}
+                </button>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Apenas ativos sem integração com mensagem MAGALOG que contenha senha; novos ficam como Agendado.
+                </p>
+                {resultadoImportacaoAtivos && (
+                  <div
+                    className={`mt-2 rounded-lg border px-3 py-2 text-xs ${
+                      resultadoImportacaoAtivos.erros.length > 0
+                        ? 'border-amber-200 bg-amber-50 text-amber-800'
+                        : 'border-slate-200 bg-slate-50 text-slate-600'
+                    }`}
+                    role="status"
+                  >
+                    <strong>{resultadoImportacaoAtivos.hub}:</strong>{' '}
+                    {resultadoImportacaoAtivos.encontrados} correspondência(s); {resultadoImportacaoAtivos.agendados} agendado(s),{' '}
+                    {resultadoImportacaoAtivos.jaNaColeta} já na coleta, {resultadoImportacaoAtivos.semMensagem} sem mensagem MAGALOG com senha e{' '}
+                    {resultadoImportacaoAtivos.ambiguos} com correspondência ambígua.
+                    {resultadoImportacaoAtivos.erros.map((erro, index) => (
+                      <div key={`${index}-${erro}`} className="mt-1">{erro}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

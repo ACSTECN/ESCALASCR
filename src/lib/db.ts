@@ -334,6 +334,9 @@ export const dbAgendamentos = {
   create: (data: Partial<Agendamento>) =>
     supabase.from('agendamentos').insert(data).select().single(),
 
+  createMany: (data: Partial<Agendamento>[]) =>
+    supabase.from('agendamentos').insert(data).select(),
+
   updateStatus: (id: string, status: StatusAgendamento) =>
     supabase.from('agendamentos').update({ status }).eq('id', id).select().single(),
 
@@ -668,6 +671,33 @@ export const dbMensagensMagalog = {
       .select('*')
       .order('recebido_em', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false }),
+
+  listComSenhaParaImportacao: async () => {
+    const pageSize = 1000;
+    const mensagens: {
+      nome: string | null;
+      cpf: string | null;
+    }[] = [];
+    let from = 0;
+
+    while (true) {
+      const { data, error } = await supabase
+        .from('mensagens_magalog')
+        .select('nome, cpf')
+        .in('tipo', ['novo_condutor', 'reenvio_senha'])
+        .not('senha', 'is', null)
+        .neq('senha', '')
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) return { data: null, error };
+      mensagens.push(...((data || []) as typeof mensagens));
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return { data: mensagens, error: null };
+  },
 
   countNaoLidas: () =>
     supabase.from('mensagens_magalog').select('id', { count: 'exact', head: true }).eq('lida', false),
