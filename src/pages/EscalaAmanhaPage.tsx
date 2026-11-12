@@ -49,8 +49,8 @@ export function EscalaAmanhaPage() {
         if (filtroHub && c.hub_id !== filtroHub) return false;
         if (filtroStatus) {
           const stats = calcColetaStats(c);
-          if (filtroStatus === 'abaixo' && stats.agendados >= c.meta) return false;
-          if (filtroStatus === 'atingido' && stats.agendados < c.meta) return false;
+          if (filtroStatus === 'abaixo' && stats.confirmados >= c.meta) return false;
+          if (filtroStatus === 'atingido' && stats.confirmados < c.meta) return false;
         }
         return c.status !== 'cancelada';
       }),
@@ -60,18 +60,21 @@ export function EscalaAmanhaPage() {
   const kpis = useMemo(() => {
     let totalMeta = 0;
     let totalAgendados = 0;
+    let totalConfirmados = 0;
     let abaixoMeta = 0;
     for (const c of coletasFiltradas) {
       const stats = calcColetaStats(c);
       totalMeta += c.meta;
       totalAgendados += stats.agendados;
-      if (stats.agendados < c.meta) abaixoMeta++;
+      totalConfirmados += stats.confirmados;
+      if (stats.confirmados < c.meta) abaixoMeta++;
     }
     const vagasRestantes = Math.max(totalMeta - totalAgendados, 0);
-    const ocupacao = totalMeta > 0 ? Math.round((totalAgendados / totalMeta) * 100) : 0;
+    const ocupacao = totalMeta > 0 ? Math.round((totalConfirmados / totalMeta) * 100) : 0;
     return {
       coletas: coletasFiltradas.length,
       agendados: totalAgendados,
+      confirmados: totalConfirmados,
       vagasPrevistas: totalMeta,
       vagasRestantes,
       ocupacao,
@@ -84,7 +87,7 @@ export function EscalaAmanhaPage() {
       coletasFiltradas
         .filter((c) => {
           const stats = calcColetaStats(c);
-          return stats.agendados < c.meta;
+          return stats.confirmados < c.meta;
         })
         .map((c) => c.hub?.sigla)
         .filter(Boolean) as string[],
@@ -105,6 +108,7 @@ export function EscalaAmanhaPage() {
           Horario: formatTime(c.horario),
           Meta: c.meta,
           Agendados: stats.agendados,
+          Confirmados: stats.confirmados,
           Vagas: stats.vagas,
           Condutor: '',
           Status_agendamento: '',
@@ -117,6 +121,7 @@ export function EscalaAmanhaPage() {
         Horario: formatTime(c.horario),
         Meta: c.meta,
         Agendados: stats.agendados,
+        Confirmados: stats.confirmados,
         Vagas: stats.vagas,
         Condutor: a.condutor?.nome_completo,
         Status_agendamento: STATUS_AGENDAMENTO_LABELS[a.status],
@@ -130,8 +135,8 @@ export function EscalaAmanhaPage() {
     { label: 'Agendados', value: kpis.agendados, icon: Users, color: 'text-emerald-600 bg-emerald-50' },
     { label: 'Vagas previstas', value: kpis.vagasPrevistas, icon: CheckCircle2, color: 'text-blue-600 bg-blue-50' },
     { label: 'Vagas restantes', value: kpis.vagasRestantes, icon: XCircle, color: 'text-amber-600 bg-amber-50' },
-    { label: 'Ocupação', value: `${kpis.ocupacao}%`, icon: TrendingUp, color: 'text-purple-600 bg-purple-50' },
-    { label: 'Abaixo da meta', value: kpis.abaixoMeta, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
+    { label: 'Ocupação confirmada', value: `${kpis.ocupacao}%`, icon: TrendingUp, color: 'text-purple-600 bg-purple-50' },
+    { label: 'Abaixo da meta confirmada', value: kpis.abaixoMeta, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
   ];
 
   return (
@@ -163,7 +168,7 @@ export function EscalaAmanhaPage() {
       {hubsAbaixoMeta.length > 0 && (
         <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
           <div className="flex items-center gap-2 text-red-700 font-medium mb-2">
-            <AlertTriangle size={18} /> HUBs que não atingiram a meta
+            <AlertTriangle size={18} /> HUBs abaixo da meta de confirmados
           </div>
           <div className="flex flex-wrap gap-2">
             {[...new Set(hubsAbaixoMeta)].map((h) => (
@@ -240,10 +245,12 @@ export function EscalaAmanhaPage() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <div className={`font-bold ${stats.agendados >= c.meta ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {stats.agendados}/{c.meta}
+                      <div className={`font-bold ${stats.confirmados >= c.meta ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {stats.confirmados}/{c.meta} confirmados
                       </div>
-                      <div className="text-xs text-slate-500">{stats.vagas} vagas • {stats.ocupacao}%</div>
+                      <div className="text-xs text-slate-500">
+                        {stats.agendados} escalados • {stats.vagas} vagas disponíveis • {stats.ocupacao}%
+                      </div>
                     </div>
                     <div className={`w-2 h-2 rounded-full ${isOpen ? 'rotate-90' : ''} transition-transform`}>▶</div>
                   </div>
@@ -252,7 +259,7 @@ export function EscalaAmanhaPage() {
                   <div className="px-5 pb-4 border-t border-slate-100">
                     <div className="h-1.5 bg-slate-100 rounded-full mt-3 mb-3 overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${stats.agendados >= c.meta ? 'bg-emerald-500' : stats.ocupacao >= 70 ? 'bg-amber-500' : 'bg-red-500'}`}
+                        className={`h-full rounded-full ${stats.confirmados >= c.meta ? 'bg-emerald-500' : stats.ocupacao >= 70 ? 'bg-amber-500' : 'bg-red-500'}`}
                         style={{ width: `${Math.min(stats.ocupacao, 100)}%` }}
                       />
                     </div>

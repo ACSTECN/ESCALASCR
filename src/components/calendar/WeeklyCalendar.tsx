@@ -383,11 +383,11 @@ export function WeeklyCalendar({
           const dayColetas = coletasByDay[key] || [];
           const today = isToday(day);
           const totalMeta = dayColetas.reduce((s, c) => s + c.meta, 0);
-          const totalAgendados = dayColetas.reduce((s, c) => {
-            const ativos = (c.agendamentos || []).filter((a) => a.status !== 'cancelado');
-            return s + ativos.length;
-          }, 0);
-          const ocupacao = totalMeta > 0 ? Math.round((totalAgendados / totalMeta) * 100) : 0;
+          const totalConfirmados = dayColetas.reduce(
+            (s, c) => s + (c.agendamentos || []).filter((a) => a.status === 'confirmado').length,
+            0
+          );
+          const ocupacao = totalMeta > 0 ? Math.round((totalConfirmados / totalMeta) * 100) : 0;
           const color = getOccupancyColor(ocupacao, 'programada', thresholds);
           const cc = colorClasses[color];
 
@@ -405,7 +405,7 @@ export function WeeklyCalendar({
                 <div className="text-lg font-bold leading-tight">{format(day, 'dd')}</div>
                 {dayColetas.length > 0 && (
                   <div className={`text-[10px] ${today ? 'text-cyan-200' : cc.text}`}>
-                    {totalAgendados}/{totalMeta} ({ocupacao}%)
+                    {totalConfirmados}/{totalMeta} confirmados ({ocupacao}%)
                   </div>
                 )}
               </div>

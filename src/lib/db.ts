@@ -772,8 +772,9 @@ export const dbConfig = {
 export const calcColetaStats = (coleta: Coleta) => {
   const ativos = (coleta.agendamentos || []).filter((a) => a.status !== 'cancelado');
   const agendados = ativos.length;
+  const confirmados = ativos.filter((a) => a.status === 'confirmado').length;
   const meta = coleta.meta || 0;
   const vagas = Math.max(meta - agendados, 0);
-  const ocupacao = meta > 0 ? Math.round((agendados / meta) * 100) : 0;
-  return { agendados, vagas, ocupacao };
+  const ocupacao = meta > 0 ? Math.round((confirmados / meta) * 100) : 0;
+  return { agendados, confirmados, vagas, ocupacao };
 };

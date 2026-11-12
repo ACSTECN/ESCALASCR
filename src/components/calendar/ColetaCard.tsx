@@ -16,7 +16,7 @@ interface ColetaCardProps {
 }
 
 export function ColetaCard({ coleta, thresholds, onClick, selectable, selected, onToggleSelect }: ColetaCardProps) {
-  const { agendados, vagas, ocupacao } = calcColetaStats(coleta);
+  const { agendados, confirmados, vagas, ocupacao } = calcColetaStats(coleta);
   const color = getOccupancyColor(ocupacao, coleta.status, thresholds);
   const c = colorClasses[color];
 
@@ -67,14 +67,14 @@ export function ColetaCard({ coleta, thresholds, onClick, selectable, selected, 
       </div>
 
       <div className="flex items-baseline gap-1 mb-1">
-        <span className={`text-lg font-bold ${c.text}`}>{agendados}</span>
-        <span className="text-xs text-slate-600 dark:text-slate-400">/ {coleta.meta} agendados</span>
+        <span className={`text-lg font-bold ${c.text}`}>{confirmados}</span>
+        <span className="text-xs text-slate-600 dark:text-slate-400">/ {coleta.meta} confirmados</span>
       </div>
 
       <div className="mb-2 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
         <span className="flex items-center gap-1">
           <Users size={12} />
-          {vagas} vagas
+          {agendados} escalados • {vagas} vagas
         </span>
         <span className="font-semibold text-slate-700 dark:text-slate-200">{ocupacao}%</span>
       </div>

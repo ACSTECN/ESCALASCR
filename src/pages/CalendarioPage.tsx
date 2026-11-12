@@ -3,7 +3,7 @@ import { format, addDays } from 'date-fns';
 import { Home, Filter, AlertTriangle } from 'lucide-react';
 import { WeeklyCalendar } from '@/components/calendar/WeeklyCalendar';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { dbColetas, dbHubs, dbCidades, dbConfig } from '@/lib/db';
+import { dbColetas, dbHubs, dbCidades, dbConfig, calcColetaStats } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import type { Coleta, Hub, Cidade, ThresholdsOcupacao } from '@/types';
 import { useUIStore } from '@/store/ui';
@@ -87,8 +87,8 @@ export function CalendarioPage() {
 
   // HUBs abaixo da meta
   const abaixoMeta = coletasFiltradas.filter((c) => {
-    const ativos = (c.agendamentos || []).filter((a) => a.status !== 'cancelado').length;
-    return ativos < c.meta && c.status !== 'finalizada' && c.status !== 'cancelada';
+    const { confirmados } = calcColetaStats(c);
+    return confirmados < c.meta && c.status !== 'finalizada' && c.status !== 'cancelada';
   });
 
   const hubsFiltrados = filtroCidadeId ? hubs.filter((h) => h.cidade_id === filtroCidadeId) : hubs;

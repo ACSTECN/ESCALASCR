@@ -93,7 +93,7 @@ export function DashboardPage() {
       const stats = calcColetaStats(c);
       metaTotal += c.meta;
       agendados += stats.agendados;
-      if (stats.agendados < c.meta) abaixoMeta++;
+      if (stats.confirmados < c.meta) abaixoMeta++;
       for (const a of c.agendamentos || []) {
         if (a.status === 'confirmado') confirmados++;
         if (a.status === 'compareceu') comparecimentos++;
@@ -102,7 +102,7 @@ export function DashboardPage() {
     }
 
     const vagas = Math.max(metaTotal - agendados, 0);
-    const preenchimento = metaTotal > 0 ? Math.round((agendados / metaTotal) * 100) : 0;
+    const preenchimento = metaTotal > 0 ? Math.round((confirmados / metaTotal) * 100) : 0;
 
     return { metaTotal, agendados, confirmados, vagas, preenchimento, abaixoMeta, comparecimentos, ausencias };
   }, [coletas]);
@@ -209,8 +209,8 @@ export function DashboardPage() {
     { label: 'Agendados', value: kpis.agendados, icon: Users, color: 'text-emerald-600 bg-emerald-50' },
     { label: 'Confirmados', value: kpis.confirmados, icon: CheckCircle2, color: 'text-blue-600 bg-blue-50' },
     { label: 'Vagas disponíveis', value: kpis.vagas, icon: XCircle, color: 'text-amber-600 bg-amber-50' },
-    { label: '% Preenchimento', value: `${kpis.preenchimento}%`, icon: TrendingUp, color: 'text-purple-600 bg-purple-50' },
-    { label: 'Abaixo da meta', value: kpis.abaixoMeta, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
+    { label: '% Ocupação confirmada', value: `${kpis.preenchimento}%`, icon: TrendingUp, color: 'text-purple-600 bg-purple-50' },
+    { label: 'Abaixo da meta confirmada', value: kpis.abaixoMeta, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
     { label: 'Comparecimentos', value: kpis.comparecimentos, icon: UserCheck, color: 'text-green-600 bg-green-50' },
     { label: 'Ausências', value: kpis.ausencias, icon: UserX, color: 'text-red-600 bg-red-50' },
   ];

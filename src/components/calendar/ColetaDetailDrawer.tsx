@@ -156,7 +156,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
 
   if (!coleta) return null;
 
-  const { agendados, vagas, ocupacao } = calcColetaStats(coleta);
+  const { confirmados, vagas, ocupacao } = calcColetaStats(coleta);
   const color = getOccupancyColor(ocupacao, coleta.status);
   const c = colorClasses[color];
 
@@ -875,9 +875,9 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
                 )}
               </div>
               <div className="text-center">
-                <div className="text-xs text-slate-500">Agendados</div>
+                <div className="text-xs text-slate-500">Confirmados</div>
                 <div className={`text-lg font-bold flex items-center justify-center gap-1 ${c.text}`}>
-                  <Users size={14} /> {agendados}
+                  <Users size={14} /> {confirmados}
                 </div>
               </div>
               <div className="text-center">
@@ -888,7 +888,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
 
             <div className="px-6 py-4 border-b border-slate-200">
               <div className="flex items-center justify-between text-sm mb-1">
-                <span className="text-slate-600">Ocupação</span>
+                <span className="text-slate-600">Ocupação confirmada</span>
                 <span className="font-semibold">{ocupacao}%</span>
               </div>
               <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
