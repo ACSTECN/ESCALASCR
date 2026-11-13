@@ -163,11 +163,29 @@ export function CondutoresPage() {
 
   const save = async () => {
     if (!form.nome_completo.trim()) return;
-    const payload = { ...form, rota_fixa_id: form.rota_fixa_id || null };
+    const onlyDigits = (s: string) => s.replace(/\D/g, '');
+    const payload = {
+      ...form,
+      nome_completo: form.nome_completo.trim(),
+      cpf: onlyDigits(form.cpf) || null,
+      telefone: form.telefone.trim() || null,
+      cidade_id: form.cidade_id || null,
+      hub_id: form.hub_id || null,
+      rota_fixa_id: form.rota_fixa_id || null,
+      observacoes: form.observacoes.trim() || null,
+    };
     if (editing) {
-      await dbCondutores.update(editing.id, payload);
+      const { error } = await dbCondutores.update(editing.id, payload);
+      if (error) {
+        alert(`Não foi possível salvar: ${error.message}`);
+        return;
+      }
     } else {
-      await dbCondutores.create(payload);
+      const { error } = await dbCondutores.create(payload);
+      if (error) {
+        alert(`Não foi possível salvar: ${error.message}`);
+        return;
+      }
     }
     setModalOpen(false);
     loadData();
