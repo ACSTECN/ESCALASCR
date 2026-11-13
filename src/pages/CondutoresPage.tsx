@@ -10,6 +10,29 @@ import { toCSV, downloadFile } from '@/utils';
 import type { Condutor, Cidade, Hub, RotaFixa } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import { canWrite } from '@/store/auth';
+import * as XLSX from 'xlsx';
+
+// Lê o arquivo respeitando a codificação real. CSV gerado pelo Excel em português
+// costuma vir em Windows-1252; ler como UTF-8 produziria acentos corrompidos.
+const decodificarBuffer = (buffer: ArrayBuffer) => {
+  const bytes = new Uint8Array(buffer);
+
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder('utf-8').decode(bytes.subarray(3));
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+  }
+
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes);
+  }
+};
 
 export function CondutoresPage() {
   const user = useAuthStore((s) => s.user);
@@ -57,12 +80,14 @@ export function CondutoresPage() {
     total: number;
     imported: number;
     updated: number;
+    ignorados: number;
     errors: string[];
   } | null>(null);
   const [importMapping, setImportMapping] = useState({
     nome: '',
     cpf: '',
     telefone: '',
+    celular: '',
     cliente: '',
     tipo: '',
     consulta: '',
@@ -257,39 +282,68 @@ export function CondutoresPage() {
   };
 
   const parseImportSource = (text: string) => {
-    const linhas = text.replace(/\r/g, '').split('\n').filter((l) => l.trim());
-    if (linhas.length === 0) {
-      return {
-        rows: [] as string[][],
-        dataRows: [] as string[][],
-        headers: [] as string[],
-        hasHeader: false,
-        autoMapping: {
-          nome: '',
-          cpf: '',
-          telefone: '',
-          cliente: '',
-          tipo: '',
-          consulta: '',
-          ativo: '',
-          situacaoCadastro: '',
-        },
-      };
+    const vazio = {
+      rows: [] as string[][],
+      dataRows: [] as string[][],
+      headers: [] as string[],
+      hasHeader: false,
+      autoMapping: {
+        nome: '',
+        cpf: '',
+        telefone: '',
+        celular: '',
+        cliente: '',
+        tipo: '',
+        consulta: '',
+        ativo: '',
+        situacaoCadastro: '',
+      },
+    };
+
+    let linhas = text.replace(/\r\n?/g, '\n').split('\n').filter((l) => l.trim());
+    if (linhas.length === 0) return vazio;
+
+    // Excel pode gravar "sep=;" na primeira linha para declarar o separador.
+    let delimitadorDeclarado = '';
+    const separadorDeclarado = linhas[0].match(/^sep=(.)\s*$/i);
+    if (separadorDeclarado) {
+      delimitadorDeclarado = separadorDeclarado[1];
+      linhas = linhas.slice(1).filter((l) => l.trim());
+      if (linhas.length === 0) return vazio;
     }
 
-    const sampleLine = linhas.find((linha) => linha.trim()) || '';
-    const delimiter = sampleLine.includes('\t') ? '\t' : sampleLine.includes(';') ? ';' : ',';
+    // Conta ocorrências em várias linhas: usar só a primeira linha erra quando
+    // há campos com vírgula ou ponto e vírgula no meio.
+    const detectarDelimitador = (amostra: string[]) => {
+      const candidatos = ['\t', ';', ',', '|'];
+      let melhor = '\t';
+      let melhorTotal = 0;
+      candidatos.forEach((candidato) => {
+        const total = amostra.reduce(
+          (acc, linha) => acc + (linha.split(candidato).length - 1),
+          0
+        );
+        if (total > melhorTotal) {
+          melhorTotal = total;
+          melhor = candidato;
+        }
+      });
+      return melhorTotal > 0 ? melhor : '\t';
+    };
+
+    const delimiter = delimitadorDeclarado || detectarDelimitador(linhas.slice(0, 5));
     const rows = linhas.map((linha) => parseDelimitedLine(linha, delimiter));
-    const normalizarCabecalho = (s: string) => normalizarNome(s).replace(/[^a-z0-9 ]/g, '');
+    const normalizarCabecalho = (s: string) => normalizarNome(s).replace(/[^a-z0-9]/g, '');
     const aliases: Record<string, string[]> = {
-      nome: ['nome'],
-      cpf: ['cpf'],
-      telefone: ['telefone', 'fone'],
-      cliente: ['cliente'],
-      tipo: ['tipo'],
-      consulta: ['consulta'],
+      nome: ['nome', 'nomecompleto', 'motorista', 'condutor', 'entregador'],
+      cpf: ['cpf', 'cpfcnpj', 'documento'],
+      telefone: ['telefone', 'fone', 'telefonecelular', 'contato', 'whatsapp'],
+      celular: ['celular', 'movel'],
+      cliente: ['cliente', 'empresa', 'transportadora'],
+      tipo: ['tipo', 'cargo', 'funcao', 'vinculo'],
+      consulta: ['consulta', 'validade', 'vencimento'],
       ativo: ['ativo', 'status'],
-      situacaoCadastro: ['situacao cadastro', 'situacao cadastr'],
+      situacaoCadastro: ['situacaocadastro', 'situacao'],
     };
 
     const firstRow = rows[0] || [];
@@ -297,43 +351,29 @@ export function CondutoresPage() {
     const hasHeader = normalizedHeaders.some((header) =>
       Object.values(aliases).some((group) => group.some((alias) => header.includes(alias)))
     );
-    const findHeaderIndex = (accepted: string[]) =>
-      normalizedHeaders.findIndex((header) => accepted.some((alias) => header.includes(alias)));
+    const findHeaderIndex = (key: keyof typeof aliases) =>
+      normalizedHeaders.findIndex((header) =>
+        aliases[key].some((alias) => header.includes(alias))
+      );
 
-    const defaultExcelMapping = rows[0]?.length >= 8
-      ? {
-          nome: '2',
-          cpf: '3',
-          telefone: rows[0]?.length > 6 ? '6' : '5',
-          cliente: '1',
-          tipo: rows[0]?.length > 7 ? '7' : '',
-          consulta: rows[0]?.length > 8 ? '8' : '',
-          ativo: rows[0]?.length > 10 ? '10' : rows[0]?.length > 9 ? '9' : '',
-          situacaoCadastro: rows[0]?.length > 12 ? '12' : '',
-        }
-      : {
-          nome: '0',
-          cpf: rows[0]?.length > 1 ? '1' : '',
-          telefone: rows[0]?.length > 2 ? '2' : '',
-          cliente: '',
-          tipo: '',
-          consulta: '',
-          ativo: '',
-          situacaoCadastro: '',
-        };
+    const defaultExcelMapping = {
+      nome: '0',
+      cpf: firstRow.length > 1 ? '1' : '',
+      telefone: firstRow.length > 2 ? '2' : '',
+      celular: '',
+      cliente: '',
+      tipo: '',
+      consulta: '',
+      ativo: '',
+      situacaoCadastro: '',
+    };
 
-    const autoMapping = hasHeader
-      ? {
-          nome: String(findHeaderIndex(aliases.nome)),
-          cpf: String(findHeaderIndex(aliases.cpf)),
-          telefone: String(findHeaderIndex(aliases.telefone)),
-          cliente: String(findHeaderIndex(aliases.cliente)),
-          tipo: String(findHeaderIndex(aliases.tipo)),
-          consulta: String(findHeaderIndex(aliases.consulta)),
-          ativo: String(findHeaderIndex(aliases.ativo)),
-          situacaoCadastro: String(findHeaderIndex(aliases.situacaoCadastro)),
-        }
-      : defaultExcelMapping;
+    const headerMapping = Object.fromEntries(
+      (Object.keys(aliases) as Array<keyof typeof aliases>).map((key) => {
+        const index = findHeaderIndex(key);
+        return [key, index >= 0 ? String(index) : ''];
+      })
+    );
 
     return {
       rows,
@@ -342,9 +382,7 @@ export function CondutoresPage() {
         ? firstRow
         : (rows[0] || []).map((_, index) => `Coluna ${String.fromCharCode(65 + index)}`),
       hasHeader,
-      autoMapping: Object.fromEntries(
-        Object.entries(autoMapping).map(([key, value]) => [key, value === '-1' ? '' : value])
-      ) as typeof importMapping,
+      autoMapping: (hasHeader ? headerMapping : defaultExcelMapping) as typeof importMapping,
     };
   };
 
@@ -363,6 +401,8 @@ export function CondutoresPage() {
       telefone: string;
       status: string;
       observacoes: string;
+      hubId: string;
+      cliente: string;
     }> = [];
     const errors: string[] = [];
     const soDigitos = (s: string) => s.replace(/\D/g, '');
@@ -378,30 +418,65 @@ export function CondutoresPage() {
       return Number.isNaN(index) ? '' : row[index] || '';
     };
 
+    // A coluna "Ativo" costuma vir sempre "Ativo"; o status real está em
+    // "Situação Cadastro" (ex.: Doc. Pendente / Cadastro não realizado).
+    const resolverStatus = (situacao: string, ativo: string) => {
+      const situacaoNormalizada = normalizarNome(situacao);
+      if (situacaoNormalizada) {
+        if (situacaoNormalizada.includes('inativo')) return 'inativo';
+        if (situacaoNormalizada.includes('ativo')) return 'ativo';
+        return 'inativo';
+      }
+      return normalizarNome(ativo).includes('inativo') ? 'inativo' : 'ativo';
+    };
+
+    const siglaPorHub = new Map<string, Hub>();
+    hubs.forEach((hub) => {
+      const chave = normalizarNome(hub.sigla || '').replace(/[^a-z0-9]/g, '');
+      if (chave) siglaPorHub.set(chave, hub);
+    });
+
+    // Na base da Magalog a sigla do HUB vai no fim da coluna Cliente.
+    const detectarHubId = (cliente: string) => {
+      const tokens = normalizarNome(cliente).split(/[^a-z0-9]+/).filter(Boolean);
+      for (let i = tokens.length - 1; i >= Math.max(0, tokens.length - 4); i--) {
+        const hub = siglaPorHub.get(tokens[i]);
+        if (hub) return hub.id;
+      }
+      return '';
+    };
+
+    let ignorados = 0;
+
     linhas.forEach((partes, index) => {
       const linhaAtual = index + 1;
 
-      let nome = '';
-      let cpf = '';
-      let telefone = '';
-      let status = 'ativo';
-      let observacoes = '';
+      const cliente = getByMap(partes, 'cliente').trim();
+      const tipo = getByMap(partes, 'tipo').trim();
 
-      nome = getByMap(partes, 'nome') || partes[0] || '';
-      cpf = soDigitos(getByMap(partes, 'cpf'));
-      telefone = limparTelefone(getByMap(partes, 'telefone'));
-      status = /inativo/i.test(getByMap(partes, 'ativo')) ? 'inativo' : 'ativo';
+      // Regra do projeto: funcionário não motorista não entra na base de entregadores.
+      if (normalizarNome(tipo).includes('nao motorista')) {
+        ignorados++;
+        return;
+      }
 
-      const observacoesParts = [
-        getByMap(partes, 'cliente') ? `Cliente: ${getByMap(partes, 'cliente')}` : '',
-        getByMap(partes, 'tipo') ? `Tipo: ${getByMap(partes, 'tipo')}` : '',
+      const nome = (getByMap(partes, 'nome') || partes[0] || '').trim();
+      const cpfBruto = soDigitos(getByMap(partes, 'cpf'));
+      const cpf = cpfBruto.length === 11 ? cpfBruto : '';
+      const telefone =
+        limparTelefone(getByMap(partes, 'telefone')) || limparTelefone(getByMap(partes, 'celular'));
+      const status = resolverStatus(getByMap(partes, 'situacaoCadastro'), getByMap(partes, 'ativo'));
+
+      const observacoes = [
+        cliente ? `Cliente: ${cliente}` : '',
+        tipo ? `Tipo: ${tipo}` : '',
         getByMap(partes, 'consulta') ? `Consulta: ${getByMap(partes, 'consulta')}` : '',
-        getByMap(partes, 'situacaoCadastro') ? `Situação cadastro: ${getByMap(partes, 'situacaoCadastro')}` : '',
-      ].filter(Boolean);
-      observacoes = observacoesParts.join(' | ');
-
-      nome = nome.trim();
-      cpf = cpf.length === 11 ? cpf : '';
+        getByMap(partes, 'situacaoCadastro')
+          ? `Situação cadastro: ${getByMap(partes, 'situacaoCadastro')}`
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' | ');
 
       if (!nome) {
         errors.push(`Linha ${linhaAtual}: nome não identificado.`);
@@ -414,21 +489,60 @@ export function CondutoresPage() {
         telefone,
         status,
         observacoes,
+        hubId: detectarHubId(cliente) || importHub,
+        cliente,
       });
     });
 
-    return { total: importPreview.rows.length, registros, errors };
+    return { total: importPreview.rows.length, registros, errors, ignorados };
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const importParsed = useMemo(
+    () => parseImportText(),
+    [importPreview, importMapping, importHub, hubs]
+  );
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      setImportText(text);
-    };
-    reader.readAsText(file);
+    const extensao = (file.name.split('.').pop() || '').toLowerCase();
+    setImportResult(null);
+
+    try {
+      if (extensao === 'xlsx' || extensao === 'xls') {
+        // Excel binário: o SheetJS já entrega o texto pronto, sem erro de acento.
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+          header: 1,
+          defval: '',
+          raw: false,
+          blankrows: false,
+        });
+        const texto = rows
+          .map((linha) =>
+            (linha || [])
+              .map((celula) => String(celula ?? '').replace(/[\t\r\n]+/g, ' ').trim())
+              .join('\t')
+          )
+          .join('\n');
+        setImportText(texto);
+      } else {
+        const buffer = await file.arrayBuffer();
+        setImportText(decodificarBuffer(buffer));
+      }
+    } catch {
+      setImportResult({
+        total: 0,
+        imported: 0,
+        updated: 0,
+        ignorados: 0,
+        errors: ['Não foi possível ler o arquivo. Tente salvar como .xlsx ou colar os dados na caixa abaixo.'],
+      });
+    }
+
+    e.target.value = '';
   };
 
   const handleImport = async () => {
@@ -436,12 +550,13 @@ export function CondutoresPage() {
     setImporting(true);
     setImportResult(null);
 
-    const parsed = parseImportText();
+    const parsed = importParsed;
     if (parsed.registros.length === 0) {
       setImportResult({
         total: parsed.total,
         imported: 0,
         updated: 0,
+        ignorados: parsed.ignorados,
         errors: parsed.errors.length > 0
           ? parsed.errors
           : ['Nenhum registro válido encontrado. Você pode colar a planilha inteira do Excel.'],
@@ -511,7 +626,7 @@ export function CondutoresPage() {
         if (item.cpf && !existente.cpf) updateData.cpf = item.cpf;
         if (item.telefone && !existente.telefone) updateData.telefone = item.telefone;
         if (importCidade && !existente.cidade_id) updateData.cidade_id = importCidade;
-        if (importHub && !existente.hub_id) updateData.hub_id = importHub;
+        if (item.hubId && !existente.hub_id) updateData.hub_id = item.hubId;
         if (item.observacoes && !existente.observacoes) updateData.observacoes = item.observacoes;
         if (existente.status !== item.status) updateData.status = item.status;
 
@@ -532,7 +647,7 @@ export function CondutoresPage() {
         cpf: item.cpf || null,
         telefone: item.telefone || null,
         cidade_id: importCidade || null,
-        hub_id: importHub || null,
+        hub_id: item.hubId || null,
         status: item.status || 'ativo',
         observacoes: item.observacoes || null,
       });
@@ -552,6 +667,7 @@ export function CondutoresPage() {
       total: parsed.total,
       imported,
       updated,
+      ignorados: parsed.ignorados,
       errors,
     });
     setImportText('');
@@ -865,10 +981,11 @@ export function CondutoresPage() {
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
             <p className="font-medium mb-1">Como usar:</p>
-            <p>Você pode colar <strong>a planilha inteira do Excel</strong> aqui. O sistema tenta identificar as colunas automaticamente, mas você também pode ajustar abaixo antes de importar.</p>
-            <p className="mt-1">Se não vier planilha completa, também aceita linhas simples com <strong>Nome, CPF e Telefone</strong>. Só o nome é obrigatório.</p>
-            <p className="mt-1">Duplicidade é verificada por <strong>CPF</strong>, <strong>nome completo</strong> e também por <strong>primeiro + segundo nome</strong>.</p>
-            <p className="mt-1 text-xs text-blue-600">Exemplo: João da Silva, 123.456.789-00, (11) 91234-5678</p>
+            <p>Suba a planilha em <strong>.xlsx</strong>, <strong>.csv</strong> ou <strong>.txt</strong>, ou cole os dados na caixa abaixo. A codificação do arquivo é tratada automaticamente, então acentos não vêm mais corrompidos.</p>
+            <p className="mt-1">O sistema identifica as colunas sozinho e mostra uma <strong>prévia</strong> do que será importado. Se algo vier errado, ajuste o mapeamento abaixo antes de importar.</p>
+            <p className="mt-1">O status é lido da coluna <strong>Situação Cadastro</strong>: "Ativo" fica ativo; "Doc. Pendente" e "Cadastro não realizado" ficam inativos. Tipo <strong>FUNCIONÁRIO NÃO MOTORISTA</strong> é ignorado.</p>
+            <p className="mt-1">O HUB de cada linha é identificado pela sigla no fim da coluna <strong>Cliente</strong>.</p>
+            <p className="mt-1">Duplicidade é verificada por <strong>CPF</strong>, <strong>nome completo</strong> e também por <strong>primeiro + segundo nome</strong>. Só o nome é obrigatório.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -880,11 +997,12 @@ export function CondutoresPage() {
               </select>
             </div>
             <div>
-              <label className="label">HUB (opcional)</label>
+              <label className="label">HUB padrão (opcional)</label>
               <select className="input" value={importHub} onChange={(e) => setImportHub(e.target.value)}>
-                <option value="">Todos</option>
+                <option value="">Usar o da planilha</option>
                 {hubsImportByCidade.map((h) => <option key={h.id} value={h.id}>{h.sigla}</option>)}
               </select>
+              <p className="text-xs text-slate-500 mt-1">Só é usado quando a planilha não indicar o HUB da linha.</p>
             </div>
           </div>
 
@@ -893,16 +1011,21 @@ export function CondutoresPage() {
               <label className="label mb-0">Lista de condutores</label>
               <label className="flex items-center gap-1 text-xs text-blue-600 cursor-pointer hover:underline">
                 <FileText size={14} />
-                <input type="file" accept=".csv,.txt" className="hidden" onChange={handleFileUpload} />
-                Subir arquivo (.csv ou .txt)
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv,.txt"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+                Subir planilha (.xlsx, .csv ou .txt)
               </label>
             </div>
             <textarea
               className="input font-mono text-xs"
-              rows={10}
+              rows={8}
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
-              placeholder={`ID\tCliente\tNome\tCPF\tSenha\tTelefone\tCelular\tTipo\tConsulta\tAtivo\n3E+05\tGFL - CR LOGISTICS\tJOAO DA SILVA\t12345678900\t123456\t(11)90000-0000\t(11)98888-7777\tAGREGADO\t25/05/2027\tAtivo`}
+              placeholder={`Cliente\tNome\tCPF\tSenha\tTelefone\tCelular\tTipo\tConsulta\tAtivo\t\tSituação Cadastro\nGFL - CR LOGISTICS ENTREGAS RAPIDAS LTDA HCPQ\tJOAO DA SILVA\t12345678900\t123456\t(11)90000-0000\t(11)98888-7777\tAGREGADO\t25/05/2027\tAtivo\t\tAtivo`}
             />
           </div>
 
@@ -918,7 +1041,8 @@ export function CondutoresPage() {
                 {[
                   ['nome', 'Nome'],
                   ['cpf', 'CPF'],
-                  ['telefone', 'Telefone/Celular'],
+                  ['telefone', 'Telefone'],
+                  ['celular', 'Celular (alternativo)'],
                   ['cliente', 'Cliente'],
                   ['tipo', 'Tipo'],
                   ['consulta', 'Consulta'],
@@ -947,12 +1071,81 @@ export function CondutoresPage() {
             </div>
           )}
 
+          {importParsed.registros.length > 0 && (
+            <div className="rounded-xl border border-slate-200 p-3 space-y-3">
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <span className="font-medium text-slate-700">Prévia do que será importado</span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {importPreview.rows.length} linha(s) lida(s)
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+                  {importParsed.registros.length} pronta(s)
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                  {importParsed.registros.filter((r) => r.status === 'inativo').length} inativa(s)
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {importParsed.registros.filter((r) => !r.hubId).length} sem HUB
+                </span>
+                {importParsed.ignorados > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                    {importParsed.ignorados} ignorada(s) (não motorista)
+                  </span>
+                )}
+                {importParsed.errors.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">
+                    {importParsed.errors.length} com problema
+                  </span>
+                )}
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="text-left font-medium px-3 py-2">Nome</th>
+                      <th className="text-left font-medium px-3 py-2">CPF</th>
+                      <th className="text-left font-medium px-3 py-2">Telefone</th>
+                      <th className="text-left font-medium px-3 py-2">HUB</th>
+                      <th className="text-left font-medium px-3 py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importParsed.registros.slice(0, 8).map((registro, index) => (
+                      <tr key={`${registro.nome}-${index}`} className="border-t border-slate-100">
+                        <td className="px-3 py-1.5 text-slate-700">{registro.nome}</td>
+                        <td className="px-3 py-1.5 font-mono text-slate-500">{registro.cpf || '—'}</td>
+                        <td className="px-3 py-1.5 font-mono text-slate-500">{registro.telefone || '—'}</td>
+                        <td className="px-3 py-1.5 text-slate-500">
+                          {hubs.find((h) => h.id === registro.hubId)?.sigla || '—'}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <span className={registro.status === 'ativo' ? 'text-green-700' : 'text-amber-700'}>
+                            {registro.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {importParsed.registros.length > 8 && (
+                <p className="text-xs text-slate-500">
+                  Mostrando as 8 primeiras linhas de {importParsed.registros.length}. Todas serão importadas.
+                </p>
+              )}
+            </div>
+          )}
+
           {importResult && (
             <div className={`p-3 rounded-lg text-sm ${(importResult.imported > 0 || importResult.updated > 0) ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
               {(importResult.imported > 0 || importResult.updated > 0) ? (
                 <div className="space-y-1">
                   <p>✅ {importResult.imported} condutor(es) novo(s) importado(s)</p>
                   <p>🔄 {importResult.updated} condutor(es) já existentes atualizado(s)</p>
+                  {importResult.ignorados > 0 && (
+                    <p>⏭️ {importResult.ignorados} linha(s) ignorada(s) (não motorista)</p>
+                  )}
                   <p className="text-xs">Total lido: {importResult.total}</p>
                 </div>
               ) : null}
