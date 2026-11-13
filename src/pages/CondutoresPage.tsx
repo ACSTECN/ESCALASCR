@@ -34,6 +34,20 @@ const decodificarBuffer = (buffer: ArrayBuffer) => {
   }
 };
 
+// Status do condutor. "desistencia" é marcado manualmente pela operação e nunca
+// é sobrescrito pela importação da base (na planilha ele aparece como Ativo).
+const STATUS_CONDUTOR_OPCOES = [
+  { value: 'ativo', label: 'Ativo' },
+  { value: 'inativo', label: 'Inativo' },
+  { value: 'desistencia', label: 'Desistência' },
+];
+
+const statusCondutorLabel = (status: string) =>
+  STATUS_CONDUTOR_OPCOES.find((o) => o.value === status)?.label || status;
+
+const statusCondutorVariant = (status: string): 'success' | 'danger' | 'gray' =>
+  status === 'ativo' ? 'success' : status === 'desistencia' ? 'danger' : 'gray';
+
 export function CondutoresPage() {
   const user = useAuthStore((s) => s.user);
   const canEdit = canWrite(user?.perfil);
@@ -81,6 +95,7 @@ export function CondutoresPage() {
     imported: number;
     updated: number;
     ignorados: number;
+    preservados: number;
     errors: string[];
   } | null>(null);
   const [importMapping, setImportMapping] = useState({
@@ -136,7 +151,7 @@ export function CondutoresPage() {
       'Telefone': c.telefone || '',
       'Cidade': cidadeMap.get(c.cidade_id || '') || '',
       'HUB': hubMap.get(c.hub_id || '') || '',
-      'Status': c.status,
+      'Status': statusCondutorLabel(c.status),
       'Observações': c.observacoes || '',
     }));
     downloadFile(toCSV(linhas), `condutores_${new Date().toISOString().slice(0, 10)}.csv`);
@@ -556,6 +571,7 @@ export function CondutoresPage() {
         imported: 0,
         updated: 0,
         ignorados: 0,
+        preservados: 0,
         errors: ['Não foi possível ler o arquivo. Tente salvar como .xlsx ou colar os dados na caixa abaixo.'],
       });
     }
@@ -575,6 +591,7 @@ export function CondutoresPage() {
         imported: 0,
         updated: 0,
         ignorados: parsed.ignorados,
+        preservados: 0,
         errors: parsed.errors.length > 0
           ? parsed.errors
           : ['Nenhum registro válido encontrado. Você pode colar a planilha inteira do Excel.'],
@@ -611,6 +628,7 @@ export function CondutoresPage() {
 
     let imported = 0;
     let updated = 0;
+    let preservados = 0;
     const errors = [...parsed.errors];
 
     for (const item of parsed.registros) {
@@ -646,7 +664,15 @@ export function CondutoresPage() {
         if (importCidade && !existente.cidade_id) updateData.cidade_id = importCidade;
         if (item.hubId && !existente.hub_id) updateData.hub_id = item.hubId;
         if (item.observacoes && !existente.observacoes) updateData.observacoes = item.observacoes;
-        if (existente.status !== item.status) updateData.status = item.status;
+
+        // Desistência é decisão da operação: a planilha mostra "Ativo", mas o
+        // status definido no sistema é mantido e não é reativado.
+        const desistente = existente.status === 'desistencia';
+        if (desistente) {
+          if (item.status === 'ativo') preservados++;
+        } else if (existente.status !== item.status) {
+          updateData.status = item.status;
+        }
 
         if (Object.keys(updateData).length > 0) {
           const { data: atualizado, error } = await dbCondutores.update(existente.id, updateData);
@@ -686,6 +712,7 @@ export function CondutoresPage() {
       imported,
       updated,
       ignorados: parsed.ignorados,
+      preservados,
       errors,
     });
     setImportText('');
@@ -769,8 +796,9 @@ export function CondutoresPage() {
               onChange={(e) => setFiltroStatus(e.target.value)}
             >
               <option value="">Todos os status</option>
-              <option value="ativo">Ativo</option>
-              <option value="inativo">Inativo</option>
+              {STATUS_CONDUTOR_OPCOES.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -864,7 +892,7 @@ export function CondutoresPage() {
                     <td className="px-5 py-3 text-slate-600">{cd.cidade?.nome || '—'}</td>
                     <td className="px-5 py-3 text-slate-600">{cd.hub?.sigla || '—'}</td>
                     <td className="px-5 py-3">
-                      <Badge variant={cd.status === 'ativo' ? 'success' : 'gray'}>{cd.status}</Badge>
+                      <Badge variant={statusCondutorVariant(cd.status)}>{statusCondutorLabel(cd.status)}</Badge>
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-1">
@@ -959,6 +987,7 @@ export function CondutoresPage() {
               >
                 <option value="ativo">Ativo</option>
                 <option value="inativo">Inativo</option>
+                <option value="desistencia">Desistência</option>
               </select>
             </div>
             <div>
@@ -1002,6 +1031,7 @@ export function CondutoresPage() {
             <p>Suba a planilha em <strong>.xlsx</strong>, <strong>.csv</strong> ou <strong>.txt</strong>, ou cole os dados na caixa abaixo. A codificação do arquivo é tratada automaticamente, então acentos não vêm mais corrompidos.</p>
             <p className="mt-1">O sistema identifica as colunas sozinho e mostra uma <strong>prévia</strong> do que será importado. Se algo vier errado, ajuste o mapeamento abaixo antes de importar.</p>
             <p className="mt-1">O status é lido da coluna <strong>Situação Cadastro</strong>: "Ativo" fica ativo; "Doc. Pendente" e "Cadastro não realizado" ficam inativos. Tipo <strong>FUNCIONÁRIO NÃO MOTORISTA</strong> é ignorado.</p>
+            <p className="mt-1">Quem estiver marcado como <strong>Desistência</strong> no sistema <strong>não é reativado</strong> pela planilha, mesmo que nela apareça como Ativo.</p>
             <p className="mt-1">O HUB de cada linha é identificado pela sigla no fim da coluna <strong>Cliente</strong>.</p>
             <p className="mt-1">Duplicidade é verificada por <strong>CPF</strong>, <strong>nome completo</strong> e também por <strong>primeiro + segundo nome</strong>. Só o nome é obrigatório.</p>
           </div>
@@ -1156,13 +1186,16 @@ export function CondutoresPage() {
           )}
 
           {importResult && (
-            <div className={`p-3 rounded-lg text-sm ${(importResult.imported > 0 || importResult.updated > 0) ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-              {(importResult.imported > 0 || importResult.updated > 0) ? (
+            <div className={`p-3 rounded-lg text-sm ${(importResult.imported > 0 || importResult.updated > 0 || importResult.preservados > 0) ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+              {(importResult.imported > 0 || importResult.updated > 0 || importResult.preservados > 0) ? (
                 <div className="space-y-1">
                   <p>✅ {importResult.imported} condutor(es) novo(s) importado(s)</p>
                   <p>🔄 {importResult.updated} condutor(es) já existentes atualizado(s)</p>
                   {importResult.ignorados > 0 && (
                     <p>⏭️ {importResult.ignorados} linha(s) ignorada(s) (não motorista)</p>
+                  )}
+                  {importResult.preservados > 0 && (
+                    <p>🚫 {importResult.preservados} mantido(s) como Desistência (não reativado(s))</p>
                   )}
                   <p className="text-xs">Total lido: {importResult.total}</p>
                 </div>
@@ -1177,9 +1210,9 @@ export function CondutoresPage() {
 
           <div className="flex justify-end gap-2 pt-2">
             <button className="btn-secondary" onClick={() => { setImportOpen(false); setImportResult(null); setImportText(''); }}>
-              {importResult && (importResult.imported > 0 || importResult.updated > 0) ? 'Fechar' : 'Cancelar'}
+              {importResult && (importResult.imported > 0 || importResult.updated > 0 || importResult.preservados > 0) ? 'Fechar' : 'Cancelar'}
             </button>
-            {(!importResult || (importResult.imported === 0 && importResult.updated === 0)) && (
+            {(!importResult || (importResult.imported === 0 && importResult.updated === 0 && importResult.preservados === 0)) && (
               <button className="btn-primary" onClick={handleImport} disabled={!importText.trim() || importing}>
                 {importing ? 'Importando...' : 'Importar'}
               </button>
