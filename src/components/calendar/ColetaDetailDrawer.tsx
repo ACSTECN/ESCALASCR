@@ -109,6 +109,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
   } | null>(null);
 
   const [filtroStatus, setFiltroStatus] = useState<StatusAgendamento | ''>('');
+  const [exportStatus, setExportStatus] = useState<StatusAgendamento | ''>('');
   const [buscaNome, setBuscaNome] = useState('');
 
   // Liberação da agenda para grupos (elegibilidade do entregador)
@@ -767,8 +768,14 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
 
     const exportarCampinas = shouldUseCampinasExportLayout(coleta);
 
+    // Sem status escolhido, exporta o mesmo conjunto da lista (sem cancelados).
+    // Com status escolhido, inclui cancelados quando for o caso.
+    const base = exportStatus
+      ? agendamentosAtuais.filter((a) => a.status === exportStatus)
+      : agendamentosAtivos;
+
     const linhas = exportarCampinas
-      ? [...agendamentosAtivos]
+      ? [...base]
           .sort((a, b) => {
             const rotaA = (a.condutor?.rota_fixa?.sigla || 'BACKUP').trim().toUpperCase();
             const rotaB = (b.condutor?.rota_fixa?.sigla || 'BACKUP').trim().toUpperCase();
@@ -786,7 +793,7 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
             CPF: formatarCpf(a.condutor?.cpf),
             empresa: 'CR',
           }))
-      : agendamentosAtivos.map((a, index) => ({
+      : base.map((a, index) => ({
           '#': index + 1,
           'Condutor': a.condutor?.nome_completo || '',
           'Rota': a.condutor?.rota_fixa?.sigla || '',
@@ -800,7 +807,8 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
           'Horário': formatTime(coleta.horario),
         }));
     const csv = toCSV(linhas);
-    downloadFile(csv, `agendamentos_${coleta.hub?.sigla}_${coleta.data_coleta}.csv`);
+    const sufixo = exportStatus ? `_${exportStatus}` : '';
+    downloadFile(csv, `agendamentos_${coleta.hub?.sigla}_${coleta.data_coleta}${sufixo}.csv`);
   };
 
   return (
@@ -1101,13 +1109,31 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
                   )}
                 </button>
               )}
-              <button
-                onClick={exportarAgendamentos}
-                title="Exportar CSV"
-                className="p-1 text-slate-400 hover:text-green-600 hover:bg-slate-100 rounded"
-              >
-                <Download size={16} />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={exportStatus}
+                  onChange={(e) => setExportStatus(e.target.value as StatusAgendamento | '')}
+                  title="Status a exportar"
+                  className="text-xs border border-slate-200 rounded-md px-2 py-1 text-slate-600 bg-white hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                >
+                  <option value="">Todos os status ({agendamentosAtivos.length})</option>
+                  {(Object.keys(STATUS_AGENDAMENTO_LABELS) as StatusAgendamento[]).map((s) => {
+                    const quantidade = agendamentosAtuais.filter((a) => a.status === s).length;
+                    return (
+                      <option key={s} value={s}>
+                        {STATUS_AGENDAMENTO_LABELS[s]} ({quantidade})
+                      </option>
+                    );
+                  })}
+                </select>
+                <button
+                  onClick={exportarAgendamentos}
+                  title={exportStatus ? `Exportar somente ${STATUS_AGENDAMENTO_LABELS[exportStatus]}` : 'Exportar todos'}
+                  className="p-1 text-slate-400 hover:text-green-600 hover:bg-slate-100 rounded"
+                >
+                  <Download size={16} />
+                </button>
+              </div>
             </div>
           </div>
 
