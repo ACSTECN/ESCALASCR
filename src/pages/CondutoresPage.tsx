@@ -60,6 +60,8 @@ export function CondutoresPage() {
   const [filtroCidade, setFiltroCidade] = useState('');
   const [filtroHub, setFiltroHub] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('');
+  const [hubAtribuicao, setHubAtribuicao] = useState('');
+  const [atribuindoHub, setAtribuindoHub] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -134,11 +136,18 @@ export function CondutoresPage() {
   const condutoresFiltrados = useMemo(() => {
     return condutores.filter((c) => {
       if (filtroCidade && c.cidade_id !== filtroCidade) return false;
-      if (filtroHub && c.hub_id !== filtroHub) return false;
+      if (filtroHub === '__sem_hub__' && c.hub_id) return false;
+      if (filtroHub && filtroHub !== '__sem_hub__' && c.hub_id !== filtroHub) return false;
       if (filtroStatus && c.status !== filtroStatus) return false;
       return true;
     });
   }, [condutores, filtroCidade, filtroHub, filtroStatus]);
+
+  const quantidadeSemHub = condutores.filter((c) =>
+    !c.hub_id &&
+    (!filtroCidade || c.cidade_id === filtroCidade) &&
+    (!filtroStatus || c.status === filtroStatus)
+  ).length;
 
   const exportarCondutores = () => {
     const cidadeMap = new Map(cidades.map((c) => [c.id, c.nome]));
@@ -263,6 +272,44 @@ export function CondutoresPage() {
     setConfirmDeleteAll(false);
     exitSelectionMode();
     loadData();
+  };
+
+  const atribuirHubSelecionados = async () => {
+    if (!hubAtribuicao || selectedIds.size === 0 || atribuindoHub) return;
+    const selecionados = condutoresFiltrados.filter((c) => selectedIds.has(c.id));
+    const selecaoOculta = selectedIds.size - selecionados.length;
+    if (selecionados.length === 0) {
+      alert('Nenhum condutor selecionado está visível com os filtros atuais.');
+      return;
+    }
+    const semHub = selecionados.filter((c) => !c.hub_id);
+    const jaAtribuidos = selecionados.length - semHub.length;
+
+    if (semHub.length === 0) {
+      alert('Os condutores selecionados já têm HUB atribuído.');
+      return;
+    }
+
+    setAtribuindoHub(true);
+    const resultados = await Promise.all(
+      semHub.map((condutor) => dbCondutores.update(condutor.id, { hub_id: hubAtribuicao }))
+    );
+    const erros = resultados.filter((resultado) => resultado.error);
+    const atualizados = resultados.length - erros.length;
+    const hub = hubs.find((item) => item.id === hubAtribuicao);
+
+    setAtribuindoHub(false);
+    setSelectedIds(new Set());
+    setLastSelectedIndex(null);
+    await loadData();
+
+    const detalhes = [
+      `${atualizados} condutor(es) atribuído(s) ao HUB ${hub?.sigla || ''}.`,
+      jaAtribuidos > 0 ? `${jaAtribuidos} já tinham HUB e não foram alterados.` : '',
+      selecaoOculta > 0 ? `${selecaoOculta} selecionado(s) oculto(s) pelos filtros não foram alterados.` : '',
+      erros.length > 0 ? `${erros.length} falha(s); tente novamente ou edite individualmente.` : '',
+    ].filter(Boolean);
+    alert(detalhes.join('\n'));
   };
 
   const normalizarNome = (value: string) =>
@@ -785,6 +832,7 @@ export function CondutoresPage() {
               onChange={(e) => setFiltroHub(e.target.value)}
             >
               <option value="">Todos os HUBs</option>
+              <option value="__sem_hub__">Sem HUB ({quantidadeSemHub})</option>
               {hubsFiltro.map((h) => <option key={h.id} value={h.id}>{h.sigla}</option>)}
             </select>
           </div>
@@ -1263,6 +1311,27 @@ export function CondutoresPage() {
           <span className="text-sm text-slate-500">
             {selectedIds.size} condutor(es) selecionado(s)
           </span>
+          <div className="flex items-center gap-2">
+            <select
+              className="input py-2 text-sm"
+              value={hubAtribuicao}
+              onChange={(e) => setHubAtribuicao(e.target.value)}
+              aria-label="HUB para atribuir aos condutores sem HUB"
+            >
+              <option value="">Escolher HUB...</option>
+              {hubsFiltro.map((hub) => (
+                <option key={hub.id} value={hub.id}>{hub.sigla}</option>
+              ))}
+            </select>
+            <button
+              className="btn-primary flex items-center gap-1 disabled:opacity-50"
+              onClick={atribuirHubSelecionados}
+              disabled={selectedIds.size === 0 || !hubAtribuicao || atribuindoHub}
+              title="Atribui o HUB apenas aos selecionados que ainda não têm HUB"
+            >
+              {atribuindoHub ? 'Atribuindo...' : 'Atribuir HUB'}
+            </button>
+          </div>
           <span className="text-xs text-slate-400 hidden md:inline">
             Dica: clique nas linhas ou use Shift para selecionar um intervalo.
           </span>
