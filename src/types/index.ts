@@ -53,6 +53,7 @@ export interface Condutor {
   id: string;
   nome_completo: string;
   cpf: string | null;
+  tem_senha_magalog: boolean;
   telefone: string | null;
   fez_integracao: boolean | null;
   cidade_id: string | null;

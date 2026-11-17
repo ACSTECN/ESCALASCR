@@ -5,7 +5,7 @@ import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
-import { dbCondutores, dbCidades, dbHubs, dbRotasFixas } from '@/lib/db';
+import { dbCondutores, dbCidades, dbHubs, dbRotasFixas, dbMensagensMagalog } from '@/lib/db';
 import { toCSV, downloadFile } from '@/utils';
 import type { Condutor, Cidade, Hub, RotaFixa } from '@/types';
 import { useAuthStore } from '@/store/auth';
@@ -92,12 +92,19 @@ export function CondutoresPage() {
   const [importCidade, setImportCidade] = useState('');
   const [importHub, setImportHub] = useState('');
   const [importing, setImporting] = useState(false);
+  const [mensagensComSenha, setMensagensComSenha] = useState<
+    { nome: string | null; cpf: string | null }[]
+  >([]);
+  const [mensagensSenhaLoading, setMensagensSenhaLoading] = useState(false);
+  const [mensagensSenhaError, setMensagensSenhaError] = useState('');
   const [importResult, setImportResult] = useState<{
     total: number;
     imported: number;
     updated: number;
     ignorados: number;
     preservados: number;
+    comSenhaMagalog: number;
+    semSenhaMagalog: number;
     errors: string[];
   } | null>(null);
   const [importMapping, setImportMapping] = useState({
@@ -106,6 +113,7 @@ export function CondutoresPage() {
     telefone: '',
     celular: '',
     cliente: '',
+    hub: '',
     tipo: '',
     consulta: '',
     ativo: '',
@@ -160,6 +168,7 @@ export function CondutoresPage() {
       'Telefone': c.telefone || '',
       'Cidade': cidadeMap.get(c.cidade_id || '') || '',
       'HUB': hubMap.get(c.hub_id || '') || '',
+      'Senha MAGALOG': c.tem_senha_magalog ? 'Sim' : 'Não',
       'Status': statusCondutorLabel(c.status),
       'Observações': c.observacoes || '',
     }));
@@ -274,6 +283,24 @@ export function CondutoresPage() {
     loadData();
   };
 
+  const abrirImportacao = async () => {
+    setImportOpen(true);
+    setImportResult(null);
+    setMensagensSenhaLoading(true);
+    setMensagensSenhaError('');
+    try {
+      const { data, error } = await dbMensagensMagalog.listComSenhaParaImportacao();
+      if (error) throw error;
+      setMensagensComSenha(data || []);
+    } catch (error) {
+      setMensagensComSenha([]);
+      const mensagem = error instanceof Error ? error.message : 'erro desconhecido';
+      setMensagensSenhaError(`Não foi possível consultar as mensagens MAGALOG: ${mensagem}`);
+    } finally {
+      setMensagensSenhaLoading(false);
+    }
+  };
+
   const atribuirHubSelecionados = async () => {
     if (!hubAtribuicao || selectedIds.size === 0 || atribuindoHub) return;
     const selecionados = condutoresFiltrados.filter((c) => selectedIds.has(c.id));
@@ -373,6 +400,7 @@ export function CondutoresPage() {
         telefone: '',
         celular: '',
         cliente: '',
+        hub: '',
         tipo: '',
         consulta: '',
         ativo: '',
@@ -420,6 +448,7 @@ export function CondutoresPage() {
       telefone: ['telefone', 'fone', 'telefonecelular', 'contato', 'whatsapp'],
       celular: ['celular', 'movel'],
       cliente: ['cliente', 'empresa', 'transportadora'],
+      hub: ['hub', 'siglahub', 'codigohub'],
       tipo: ['tipo', 'cargo', 'funcao', 'vinculo'],
       consulta: ['consulta', 'validade', 'vencimento'],
       ativo: ['ativo', 'status'],
@@ -442,6 +471,7 @@ export function CondutoresPage() {
       telefone: firstRow.length > 2 ? '2' : '',
       celular: '',
       cliente: '',
+      hub: '',
       tipo: '',
       consulta: '',
       ativo: '',
@@ -483,9 +513,32 @@ export function CondutoresPage() {
       observacoes: string;
       hubId: string;
       cliente: string;
+      temSenhaMagalog: boolean;
     }> = [];
     const errors: string[] = [];
     const soDigitos = (s: string) => s.replace(/\D/g, '');
+    const cpfsComSenha = new Set(
+      mensagensComSenha
+        .map((mensagem) => soDigitos(mensagem.cpf || ''))
+        .filter((cpf) => cpf.length === 11)
+    );
+    const cpfsPorNome = new Map<string, Set<string>>();
+    mensagensComSenha.forEach((mensagem) => {
+      const nome = normalizarNome(mensagem.nome || '');
+      if (!nome) return;
+      const cpfs = cpfsPorNome.get(nome) || new Set<string>();
+      cpfs.add(soDigitos(mensagem.cpf || ''));
+      cpfsPorNome.set(nome, cpfs);
+    });
+    const temSenhaMagalog = (nome: string, cpf: string) => {
+      const nomeNormalizado = normalizarNome(nome);
+      if (cpf && cpfsComSenha.has(cpf)) return true;
+      const cpfs = cpfsPorNome.get(nomeNormalizado);
+      if (!cpfs) return false;
+      if (cpf) return cpfs.has('');
+      return cpfs.size === 1;
+    };
+
     const limparTelefone = (s: string) => {
       const digits = soDigitos(s);
       return digits.length === 10 || digits.length === 11 ? digits : '';
@@ -516,7 +569,7 @@ export function CondutoresPage() {
       if (chave) siglaPorHub.set(chave, hub);
     });
 
-    // Na base da Magalog a sigla do HUB vai no fim da coluna Cliente.
+    // Compatibilidade com planilhas antigas sem coluna Hub.
     const detectarHubId = (cliente: string) => {
       const tokens = normalizarNome(cliente).split(/[^a-z0-9]+/).filter(Boolean);
       for (let i = tokens.length - 1; i >= Math.max(0, tokens.length - 4); i--) {
@@ -546,6 +599,14 @@ export function CondutoresPage() {
       const telefone =
         limparTelefone(getByMap(partes, 'telefone')) || limparTelefone(getByMap(partes, 'celular'));
       const status = resolverStatus(getByMap(partes, 'situacaoCadastro'), getByMap(partes, 'ativo'));
+      const hubInformado = getByMap(partes, 'hub').trim();
+      const hubMapeado = hubInformado
+        ? siglaPorHub.get(normalizarNome(hubInformado).replace(/[^a-z0-9]/g, ''))
+        : null;
+      if (hubInformado && !hubMapeado) {
+        errors.push(`Linha ${linhaAtual}: HUB "${hubInformado}" não está cadastrado no sistema; condutor não importado.`);
+        return;
+      }
 
       const observacoes = [
         cliente ? `Cliente: ${cliente}` : '',
@@ -569,8 +630,9 @@ export function CondutoresPage() {
         telefone,
         status,
         observacoes,
-        hubId: detectarHubId(cliente) || importHub,
+        hubId: hubMapeado?.id || detectarHubId(cliente) || importHub,
         cliente,
+        temSenhaMagalog: temSenhaMagalog(nome, cpf),
       });
     });
 
@@ -579,7 +641,7 @@ export function CondutoresPage() {
 
   const importParsed = useMemo(
     () => parseImportText(),
-    [importPreview, importMapping, importHub, hubs]
+    [importPreview, importMapping, importHub, hubs, mensagensComSenha]
   );
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -619,6 +681,8 @@ export function CondutoresPage() {
         updated: 0,
         ignorados: 0,
         preservados: 0,
+        comSenhaMagalog: 0,
+        semSenhaMagalog: 0,
         errors: ['Não foi possível ler o arquivo. Tente salvar como .xlsx ou colar os dados na caixa abaixo.'],
       });
     }
@@ -628,6 +692,7 @@ export function CondutoresPage() {
 
   const handleImport = async () => {
     if (!importText.trim()) return;
+    if (mensagensSenhaLoading || mensagensSenhaError) return;
     setImporting(true);
     setImportResult(null);
 
@@ -639,6 +704,8 @@ export function CondutoresPage() {
         updated: 0,
         ignorados: parsed.ignorados,
         preservados: 0,
+        comSenhaMagalog: 0,
+        semSenhaMagalog: 0,
         errors: parsed.errors.length > 0
           ? parsed.errors
           : ['Nenhum registro válido encontrado. Você pode colar a planilha inteira do Excel.'],
@@ -709,7 +776,10 @@ export function CondutoresPage() {
         if (item.cpf && !existente.cpf) updateData.cpf = item.cpf;
         if (item.telefone && !existente.telefone) updateData.telefone = item.telefone;
         if (importCidade && !existente.cidade_id) updateData.cidade_id = importCidade;
-        if (item.hubId && !existente.hub_id) updateData.hub_id = item.hubId;
+        if (item.hubId && existente.hub_id !== item.hubId) updateData.hub_id = item.hubId;
+        if (existente.tem_senha_magalog !== item.temSenhaMagalog) {
+          updateData.tem_senha_magalog = item.temSenhaMagalog;
+        }
         if (item.observacoes && !existente.observacoes) updateData.observacoes = item.observacoes;
 
         // Desistência é decisão da operação: a planilha mostra "Ativo", mas o
@@ -739,6 +809,7 @@ export function CondutoresPage() {
         telefone: item.telefone || null,
         cidade_id: importCidade || null,
         hub_id: item.hubId || null,
+        tem_senha_magalog: item.temSenhaMagalog,
         status: item.status || 'ativo',
         observacoes: item.observacoes || null,
       });
@@ -760,6 +831,8 @@ export function CondutoresPage() {
       updated,
       ignorados: parsed.ignorados,
       preservados,
+      comSenhaMagalog: parsed.registros.filter((item) => item.temSenhaMagalog).length,
+      semSenhaMagalog: parsed.registros.filter((item) => !item.temSenhaMagalog).length,
       errors,
     });
     setImportText('');
@@ -789,7 +862,7 @@ export function CondutoresPage() {
                   {selectionMode ? <X size={16} /> : <CheckSquare size={16} />}
                   {selectionMode ? 'Cancelar' : 'Selecionar'}
                 </button>
-                <button className="btn-secondary" onClick={() => setImportOpen(true)}>
+                <button className="btn-secondary" onClick={abrirImportacao}>
                   <Upload size={16} /> Importar base
                 </button>
                 <button className="btn-primary" onClick={() => openModal()}>
@@ -887,6 +960,7 @@ export function CondutoresPage() {
                   <th className="text-left px-5 py-3">Telefone</th>
                   <th className="text-left px-5 py-3">Cidade</th>
                   <th className="text-left px-5 py-3">HUB</th>
+                  <th className="text-left px-5 py-3">Senha MAGALOG</th>
                   <th className="text-left px-5 py-3">Status</th>
                   <th className="text-right px-5 py-3">Ações</th>
                 </tr>
@@ -939,6 +1013,11 @@ export function CondutoresPage() {
                     </td>
                     <td className="px-5 py-3 text-slate-600">{cd.cidade?.nome || '—'}</td>
                     <td className="px-5 py-3 text-slate-600">{cd.hub?.sigla || '—'}</td>
+                    <td className="px-5 py-3">
+                      <Badge variant={cd.tem_senha_magalog ? 'success' : 'gray'}>
+                        {cd.tem_senha_magalog ? 'Sim' : 'Não'}
+                      </Badge>
+                    </td>
                     <td className="px-5 py-3">
                       <Badge variant={statusCondutorVariant(cd.status)}>{statusCondutorLabel(cd.status)}</Badge>
                     </td>
@@ -1074,13 +1153,27 @@ export function CondutoresPage() {
       {/* Modal Importação em Lote */}
       <Modal open={importOpen} onClose={() => { setImportOpen(false); setImportResult(null); setImportText(''); }} title="Importar base de entregadores" size="lg">
         <div className="space-y-4">
+          <div className={`rounded-lg border p-3 text-sm ${
+            mensagensSenhaLoading
+              ? 'bg-blue-50 border-blue-200 text-blue-800'
+              : mensagensSenhaError
+                ? 'bg-red-50 border-red-200 text-red-800'
+                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          }`}>
+            {mensagensSenhaLoading
+              ? 'Consultando mensagens MAGALOG para conferir quem possui senha...'
+              : mensagensSenhaError
+                ? mensagensSenhaError
+                : `${mensagensComSenha.length} mensagem(ns) com senha disponível(veis) para cruzamento por CPF ou nome completo.`}
+          </div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
             <p className="font-medium mb-1">Como usar:</p>
             <p>Suba a planilha em <strong>.xlsx</strong>, <strong>.csv</strong> ou <strong>.txt</strong>, ou cole os dados na caixa abaixo. A codificação do arquivo é tratada automaticamente, então acentos não vêm mais corrompidos.</p>
             <p className="mt-1">O sistema identifica as colunas sozinho e mostra uma <strong>prévia</strong> do que será importado. Se algo vier errado, ajuste o mapeamento abaixo antes de importar.</p>
             <p className="mt-1">O status é lido da coluna <strong>Situação Cadastro</strong>: "Ativo" fica ativo; "Doc. Pendente" e "Cadastro não realizado" ficam inativos. Tipo <strong>FUNCIONÁRIO NÃO MOTORISTA</strong> é ignorado.</p>
             <p className="mt-1">Quem estiver marcado como <strong>Desistência</strong> no sistema <strong>não é reativado</strong> pela planilha, mesmo que nela apareça como Ativo.</p>
-            <p className="mt-1">O HUB de cada linha é identificado pela sigla no fim da coluna <strong>Cliente</strong>.</p>
+            <p className="mt-1">O HUB é lido da coluna <strong>Hub</strong> de cada linha. Ela atualiza o HUB do condutor; deixe em branco para manter o HUB atual ou usar o HUB detectado no Cliente/HUB padrão.</p>
+            <p className="mt-1">A coluna <strong>Senha</strong> não precisa vir na planilha: o sistema marca Sim/Não cruzando CPF ou nome completo com mensagens MAGALOG que tenham senha registrada.</p>
             <p className="mt-1">Duplicidade é verificada por <strong>CPF</strong>, <strong>nome completo</strong> e também por <strong>primeiro + segundo nome</strong>. Só o nome é obrigatório.</p>
           </div>
 
@@ -1121,7 +1214,7 @@ export function CondutoresPage() {
               rows={8}
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
-              placeholder={`Cliente\tNome\tCPF\tSenha\tTelefone\tCelular\tTipo\tConsulta\tAtivo\t\tSituação Cadastro\nGFL - CR LOGISTICS ENTREGAS RAPIDAS LTDA HCPQ\tJOAO DA SILVA\t12345678900\t123456\t(11)90000-0000\t(11)98888-7777\tAGREGADO\t25/05/2027\tAtivo\t\tAtivo`}
+              placeholder={`Cliente\tNome\tCPF\tTelefone\tCelular\tTipo\tConsulta\tAtivo\tSituação Cadastro\tHub\nGFL - CR LOGISTICS ENTREGAS RAPIDAS LTDA\tJOAO DA SILVA\t12345678900\t(11)90000-0000\t(11)98888-7777\tAGREGADO\t25/05/2027\tAtivo\tAtivo\tHCPQ`}
             />
           </div>
 
@@ -1140,6 +1233,7 @@ export function CondutoresPage() {
                   ['telefone', 'Telefone'],
                   ['celular', 'Celular (alternativo)'],
                   ['cliente', 'Cliente'],
+                  ['hub', 'HUB'],
                   ['tipo', 'Tipo'],
                   ['consulta', 'Consulta'],
                   ['ativo', 'Ativo'],
@@ -1180,6 +1274,12 @@ export function CondutoresPage() {
                 <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                   {importParsed.registros.filter((r) => r.status === 'inativo').length} inativa(s)
                 </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  {importParsed.registros.filter((r) => r.temSenhaMagalog).length} com senha MAGALOG
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {importParsed.registros.filter((r) => !r.temSenhaMagalog).length} sem senha MAGALOG
+                </span>
                 <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
                   {importParsed.registros.filter((r) => !r.hubId).length} sem HUB
                 </span>
@@ -1203,6 +1303,7 @@ export function CondutoresPage() {
                       <th className="text-left font-medium px-3 py-2">CPF</th>
                       <th className="text-left font-medium px-3 py-2">Telefone</th>
                       <th className="text-left font-medium px-3 py-2">HUB</th>
+                      <th className="text-left font-medium px-3 py-2">Senha MAGALOG</th>
                       <th className="text-left font-medium px-3 py-2">Status</th>
                     </tr>
                   </thead>
@@ -1214,6 +1315,9 @@ export function CondutoresPage() {
                         <td className="px-3 py-1.5 font-mono text-slate-500">{registro.telefone || '—'}</td>
                         <td className="px-3 py-1.5 text-slate-500">
                           {hubs.find((h) => h.id === registro.hubId)?.sigla || '—'}
+                        </td>
+                        <td className={`px-3 py-1.5 font-medium ${registro.temSenhaMagalog ? 'text-emerald-700' : 'text-slate-500'}`}>
+                          {registro.temSenhaMagalog ? 'Sim' : 'Não'}
                         </td>
                         <td className="px-3 py-1.5">
                           <span className={registro.status === 'ativo' ? 'text-green-700' : 'text-amber-700'}>
@@ -1234,20 +1338,19 @@ export function CondutoresPage() {
           )}
 
           {importResult && (
-            <div className={`p-3 rounded-lg text-sm ${(importResult.imported > 0 || importResult.updated > 0 || importResult.preservados > 0) ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-              {(importResult.imported > 0 || importResult.updated > 0 || importResult.preservados > 0) ? (
-                <div className="space-y-1">
-                  <p>✅ {importResult.imported} condutor(es) novo(s) importado(s)</p>
-                  <p>🔄 {importResult.updated} condutor(es) já existentes atualizado(s)</p>
-                  {importResult.ignorados > 0 && (
-                    <p>⏭️ {importResult.ignorados} linha(s) ignorada(s) (não motorista)</p>
-                  )}
-                  {importResult.preservados > 0 && (
-                    <p>🚫 {importResult.preservados} mantido(s) como Desistência (não reativado(s))</p>
-                  )}
-                  <p className="text-xs">Total lido: {importResult.total}</p>
-                </div>
-              ) : null}
+            <div className={`p-3 rounded-lg text-sm ${importResult.errors.length === 0 ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+              <div className="space-y-1">
+                <p>✅ {importResult.imported} condutor(es) novo(s) importado(s)</p>
+                <p>🔄 {importResult.updated} condutor(es) já existentes atualizado(s)</p>
+                <p>🔐 Senha MAGALOG: {importResult.comSenhaMagalog} Sim / {importResult.semSenhaMagalog} Não</p>
+                {importResult.ignorados > 0 && (
+                  <p>⏭️ {importResult.ignorados} linha(s) ignorada(s) (não motorista)</p>
+                )}
+                {importResult.preservados > 0 && (
+                  <p>🚫 {importResult.preservados} mantido(s) como Desistência (não reativado(s))</p>
+                )}
+                <p className="text-xs">Total lido: {importResult.total}</p>
+              </div>
               {importResult.errors.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {importResult.errors.map((e, i) => <p key={i}>❌ {e}</p>)}
@@ -1258,11 +1361,15 @@ export function CondutoresPage() {
 
           <div className="flex justify-end gap-2 pt-2">
             <button className="btn-secondary" onClick={() => { setImportOpen(false); setImportResult(null); setImportText(''); }}>
-              {importResult && (importResult.imported > 0 || importResult.updated > 0 || importResult.preservados > 0) ? 'Fechar' : 'Cancelar'}
+              {importResult ? 'Fechar' : 'Cancelar'}
             </button>
-            {(!importResult || (importResult.imported === 0 && importResult.updated === 0 && importResult.preservados === 0)) && (
-              <button className="btn-primary" onClick={handleImport} disabled={!importText.trim() || importing}>
-                {importing ? 'Importando...' : 'Importar'}
+            {!importResult && (
+              <button
+                className="btn-primary"
+                onClick={handleImport}
+                disabled={!importText.trim() || importing || mensagensSenhaLoading || !!mensagensSenhaError}
+              >
+                {importing ? 'Importando...' : mensagensSenhaLoading ? 'Consultando Magalog...' : 'Importar'}
               </button>
             )}
           </div>
