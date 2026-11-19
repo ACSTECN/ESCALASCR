@@ -5,9 +5,9 @@ import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
-import { dbCondutores, dbCidades, dbHubs, dbRotasFixas, dbMensagensMagalog, dbPortarias } from '@/lib/db';
+import { dbCondutores, dbCidades, dbHubs, dbRotasFixas, dbMensagensMagalog, dbPortarias, dbGrupos } from '@/lib/db';
 import { toCSV, downloadFile } from '@/utils';
-import type { Condutor, Cidade, Hub, RotaFixa, PortariaCondutor } from '@/types';
+import type { Condutor, Cidade, Hub, RotaFixa, PortariaCondutor, Grupo } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import { canWrite } from '@/store/auth';
 import * as XLSX from 'xlsx';
@@ -57,12 +57,16 @@ export function CondutoresPage() {
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [rotas, setRotas] = useState<RotaFixa[]>([]);
   const [portarias, setPortarias] = useState<PortariaCondutor[]>([]);
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [search, setSearch] = useState('');
   const [filtroCidade, setFiltroCidade] = useState('');
   const [filtroHub, setFiltroHub] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('');
+  const [filtroGrupo, setFiltroGrupo] = useState('');
   const [hubAtribuicao, setHubAtribuicao] = useState('');
   const [atribuindoHub, setAtribuindoHub] = useState(false);
+  const [grupoAtribuicao, setGrupoAtribuicao] = useState('');
+  const [atribuindoGrupo, setAtribuindoGrupo] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -123,18 +127,20 @@ export function CondutoresPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [c, cid, h, r, p] = await Promise.all([
+    const [c, cid, h, r, p, g] = await Promise.all([
       dbCondutores.list(search),
       dbCidades.listAtivas(),
       dbHubs.listAtivos(),
       dbRotasFixas.listAtivas(),
       dbPortarias.list(),
+      dbGrupos.list(),
     ]);
     setCondutores((c.data as Condutor[]) || []);
     setCidades((cid.data as Cidade[]) || []);
     setHubs((h.data as Hub[]) || []);
     setRotas((r.data as RotaFixa[]) || []);
     setPortarias(p.error ? [] : (p.data as PortariaCondutor[]) || []);
+    setGrupos((g.data as Grupo[]) || []);
     setLoading(false);
   };
 
@@ -144,19 +150,67 @@ export function CondutoresPage() {
 
   const hubsFiltro = filtroCidade ? hubs.filter((h) => h.cidade_id === filtroCidade) : hubs;
 
+  const condutoresPorGrupo = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    grupos.forEach((grupo) => {
+      const ids = new Set<string>();
+      (grupo.vinculos || []).forEach((v) => {
+        if (v.condutor_id) ids.add(v.condutor_id);
+      });
+      map.set(grupo.id, ids);
+    });
+    return map;
+  }, [grupos]);
+
+  const condutoresComGrupo = useMemo(() => {
+    const set = new Set<string>();
+    grupos.forEach((grupo) => {
+      (grupo.vinculos || []).forEach((v) => {
+        if (v.condutor_id) set.add(v.condutor_id);
+      });
+    });
+    return set;
+  }, [grupos]);
+
+  const gruposPorCondutor = useMemo(() => {
+    const map = new Map<string, Grupo[]>();
+    grupos.forEach((grupo) => {
+      (grupo.vinculos || []).forEach((v) => {
+        if (!v.condutor_id) return;
+        const lista = map.get(v.condutor_id) || [];
+        lista.push(grupo);
+        map.set(v.condutor_id, lista);
+      });
+    });
+    return map;
+  }, [grupos]);
+
   const condutoresFiltrados = useMemo(() => {
     return condutores.filter((c) => {
       if (filtroCidade && c.cidade_id !== filtroCidade) return false;
       if (filtroHub === '__sem_hub__' && c.hub_id) return false;
       if (filtroHub && filtroHub !== '__sem_hub__' && c.hub_id !== filtroHub) return false;
       if (filtroStatus && c.status !== filtroStatus) return false;
+      if (filtroGrupo === '__sem_grupo__') {
+        if (condutoresComGrupo.has(c.id)) return false;
+      } else if (filtroGrupo) {
+        const ids = condutoresPorGrupo.get(filtroGrupo);
+        if (!ids || !ids.has(c.id)) return false;
+      }
       return true;
     });
-  }, [condutores, filtroCidade, filtroHub, filtroStatus]);
+  }, [condutores, filtroCidade, filtroHub, filtroStatus, filtroGrupo, condutoresPorGrupo, condutoresComGrupo]);
 
   const quantidadeSemHub = condutores.filter((c) =>
     !c.hub_id &&
     (!filtroCidade || c.cidade_id === filtroCidade) &&
+    (!filtroStatus || c.status === filtroStatus)
+  ).length;
+
+  const quantidadeSemGrupo = condutores.filter((c) =>
+    !condutoresComGrupo.has(c.id) &&
+    (!filtroCidade || c.cidade_id === filtroCidade) &&
+    (!filtroHub || c.hub_id === filtroHub) &&
     (!filtroStatus || c.status === filtroStatus)
   ).length;
 
@@ -182,6 +236,7 @@ export function CondutoresPage() {
       'Telefone': c.telefone || '',
       'Cidade': cidadeMap.get(c.cidade_id || '') || '',
       'HUB': hubMap.get(c.hub_id || '') || '',
+      'Grupos': (gruposPorCondutor.get(c.id) || []).map((g) => g.nome).join(', '),
       'Portaria BH': (portariasPorCondutor.get(c.id) || []).find((p) => p.portaria === 'belo_horizonte')
         ? ((portariasPorCondutor.get(c.id) || []).find((p) => p.portaria === 'belo_horizonte')?.aprovacao ||
           (portariasPorCondutor.get(c.id) || []).find((p) => p.portaria === 'belo_horizonte')?.status || '')
@@ -357,6 +412,45 @@ export function CondutoresPage() {
       jaAtribuidos > 0 ? `${jaAtribuidos} já tinham HUB e não foram alterados.` : '',
       selecaoOculta > 0 ? `${selecaoOculta} selecionado(s) oculto(s) pelos filtros não foram alterados.` : '',
       erros.length > 0 ? `${erros.length} falha(s); tente novamente ou edite individualmente.` : '',
+    ].filter(Boolean);
+    alert(detalhes.join('\n'));
+  };
+
+  const atribuirGrupoSelecionados = async () => {
+    if (!grupoAtribuicao || selectedIds.size === 0 || atribuindoGrupo) return;
+    const selecionados = condutoresFiltrados.filter((c) => selectedIds.has(c.id));
+    const selecaoOculta = selectedIds.size - selecionados.length;
+    if (selecionados.length === 0) {
+      alert('Nenhum condutor selecionado está visível com os filtros atuais.');
+      return;
+    }
+
+    const idsExistentes = condutoresPorGrupo.get(grupoAtribuicao) || new Set<string>();
+    const idsParaAdicionar = selecionados
+      .map((c) => c.id)
+      .filter((id) => !idsExistentes.has(id));
+    const jaNoGrupo = selecionados.length - idsParaAdicionar.length;
+
+    if (idsParaAdicionar.length === 0) {
+      alert('Todos os condutores selecionados já fazem parte do grupo escolhido.');
+      return;
+    }
+
+    setAtribuindoGrupo(true);
+    const { error } = await dbGrupos.addCondutores(grupoAtribuicao, idsParaAdicionar);
+    const grupo = grupos.find((item) => item.id === grupoAtribuicao);
+
+    setAtribuindoGrupo(false);
+    setSelectedIds(new Set());
+    setLastSelectedIndex(null);
+    await loadData();
+
+    const detalhes = [
+      error
+        ? `Não foi possível adicionar ao grupo: ${error.message}`
+        : `${idsParaAdicionar.length} condutor(es) adicionado(s) ao grupo ${grupo?.nome || ''}.`,
+      jaNoGrupo > 0 ? `${jaNoGrupo} já faziam parte do grupo e não foram alterados.` : '',
+      selecaoOculta > 0 ? `${selecaoOculta} selecionado(s) oculto(s) pelos filtros não foram alterados.` : '',
     ].filter(Boolean);
     alert(detalhes.join('\n'));
   };
@@ -907,7 +1001,7 @@ export function CondutoresPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label className="label">Cidade</label>
             <select
@@ -944,11 +1038,25 @@ export function CondutoresPage() {
               ))}
             </select>
           </div>
+          <div>
+            <label className="label">Grupo</label>
+            <select
+              className="input"
+              value={filtroGrupo}
+              onChange={(e) => setFiltroGrupo(e.target.value)}
+            >
+              <option value="">Todos os grupos</option>
+              <option value="__sem_grupo__">Sem grupo ({quantidadeSemGrupo})</option>
+              {grupos.filter((g) => g.ativo).map((g) => (
+                <option key={g.id} value={g.id}>{g.nome}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        {(filtroCidade || filtroHub || filtroStatus) && (
+        {(filtroCidade || filtroHub || filtroStatus || filtroGrupo) && (
           <button
             className="text-xs text-blue-600 hover:underline mt-2"
-            onClick={() => { setFiltroCidade(''); setFiltroHub(''); setFiltroStatus(''); }}
+            onClick={() => { setFiltroCidade(''); setFiltroHub(''); setFiltroStatus(''); setFiltroGrupo(''); }}
           >
             Limpar filtros
           </button>
@@ -982,6 +1090,7 @@ export function CondutoresPage() {
                   <th className="text-left px-5 py-3">Telefone</th>
                   <th className="text-left px-5 py-3">Cidade</th>
                   <th className="text-left px-5 py-3">HUB</th>
+                  <th className="text-left px-5 py-3">Grupos</th>
                   <th className="text-left px-5 py-3">Portarias</th>
                   <th className="text-left px-5 py-3">Senha MAGALOG</th>
                   <th className="text-left px-5 py-3">Status</th>
@@ -1036,6 +1145,19 @@ export function CondutoresPage() {
                     </td>
                     <td className="px-5 py-3 text-slate-600">{cd.cidade?.nome || '—'}</td>
                     <td className="px-5 py-3 text-slate-600">{cd.hub?.sigla || '—'}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {(gruposPorCondutor.get(cd.id) || []).length === 0 ? (
+                          <span className="text-slate-400">—</span>
+                        ) : (
+                          (gruposPorCondutor.get(cd.id) || []).map((grupo) => (
+                            <span key={grupo.id} title={grupo.observacao || ''}>
+                              <Badge variant="info">{grupo.nome}</Badge>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </td>
                     <td className="px-5 py-3">
                       <div className="flex flex-wrap gap-1">
                         {(portariasPorCondutor.get(cd.id) || []).length === 0 ? (
@@ -1478,6 +1600,27 @@ export function CondutoresPage() {
               title="Atribui o HUB apenas aos selecionados que ainda não têm HUB"
             >
               {atribuindoHub ? 'Atribuindo...' : 'Atribuir HUB'}
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              className="input py-2 text-sm"
+              value={grupoAtribuicao}
+              onChange={(e) => setGrupoAtribuicao(e.target.value)}
+              aria-label="Grupo para adicionar os condutores selecionados"
+            >
+              <option value="">Adicionar ao grupo...</option>
+              {grupos.filter((g) => g.ativo).map((grupo) => (
+                <option key={grupo.id} value={grupo.id}>{grupo.nome}</option>
+              ))}
+            </select>
+            <button
+              className="btn-primary flex items-center gap-1 disabled:opacity-50"
+              onClick={atribuirGrupoSelecionados}
+              disabled={selectedIds.size === 0 || !grupoAtribuicao || atribuindoGrupo}
+              title="Adiciona os condutores selecionados ao grupo escolhido"
+            >
+              {atribuindoGrupo ? 'Adicionando...' : 'Adicionar ao grupo'}
             </button>
           </div>
           <span className="text-xs text-slate-400 hidden md:inline">
