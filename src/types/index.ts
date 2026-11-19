@@ -10,6 +10,7 @@ export type StatusAgendamento =
   | 'concluido';
 
 export type StatusColeta = 'programada' | 'em_andamento' | 'finalizada' | 'cancelada';
+export type TipoPortaria = 'belo_horizonte' | 'guarulhos';
 
 export interface Cidade {
   id: string;
@@ -68,6 +69,25 @@ export interface Condutor {
   cidade?: Cidade;
   hub?: Hub;
   rota_fixa?: RotaFixa | null;
+}
+
+export interface PortariaCondutor {
+  id: string;
+  portaria: TipoPortaria;
+  condutor_id: string | null;
+  nome: string;
+  cpf: string | null;
+  transportadora: string | null;
+  local: string | null;
+  cargo: string | null;
+  agencia: string | null;
+  status: string | null;
+  aprovacao: string | null;
+  data_envio: string | null;
+  observacoes: string | null;
+  created_at: string;
+  updated_at: string;
+  condutor?: Pick<Condutor, 'id' | 'nome_completo' | 'cpf'> | null;
 }
 
 export interface Coleta {
@@ -193,6 +213,11 @@ export interface EntregadorAgenda {
     cpf: string;
     telefone: string | null;
     hub_id: string | null;
+    portarias?: {
+      portaria: TipoPortaria;
+      situacao: string | null;
+      data_envio: string | null;
+    }[];
   };
   slots?: EntregadorSlot[];
 }

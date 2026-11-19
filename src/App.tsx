@@ -15,6 +15,7 @@ import { ListaEsperaPage } from '@/pages/ListaEsperaPage';
 import { GruposPage } from '@/pages/GruposPage';
 import { InteresseEntregadorPage } from '@/pages/InteresseEntregadorPage';
 import { MensagensMagalogPage } from '@/pages/MensagensMagalogPage';
+import { PortariasPage } from '@/pages/PortariasPage';
 import { useInitAuth } from '@/hooks/useAuth';
 
 function AppRoutes() {
@@ -46,6 +47,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute roles={['admin', 'supervisor', 'operador']}>
               <CondutoresPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="portarias"
+          element={
+            <ProtectedRoute roles={['admin', 'supervisor', 'operador']}>
+              <PortariasPage />
             </ProtectedRoute>
           }
         />

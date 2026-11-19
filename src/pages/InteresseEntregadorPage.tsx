@@ -281,6 +281,25 @@ export function InteresseEntregadorPage() {
                     </div>
                   )}
 
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <h2 className="text-sm font-semibold text-slate-800">Situação das portarias</h2>
+                    {agenda.condutor?.portarias?.length ? (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {agenda.condutor.portarias.map((item) => (
+                          <div key={item.portaria} className="rounded-lg bg-slate-50 px-3 py-2">
+                            <div className="text-xs text-slate-500">
+                              {item.portaria === 'belo_horizonte' ? 'Belo Horizonte' : 'Guarulhos'}
+                            </div>
+                            <div className="mt-0.5 font-semibold text-slate-800">{item.situacao || 'Sem status informado'}</div>
+                            {item.data_envio && <div className="mt-0.5 text-xs text-slate-500">Enviado: {item.data_envio}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-500">Ainda não há informação de portaria vinculada ao seu cadastro.</p>
+                    )}
+                  </div>
+
                   {porData.length === 0 ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
                       <p className="text-sm text-slate-600">Sem agendas disponiveis.</p>

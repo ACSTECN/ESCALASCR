@@ -5,9 +5,9 @@ import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
-import { dbCondutores, dbCidades, dbHubs, dbRotasFixas, dbMensagensMagalog } from '@/lib/db';
+import { dbCondutores, dbCidades, dbHubs, dbRotasFixas, dbMensagensMagalog, dbPortarias } from '@/lib/db';
 import { toCSV, downloadFile } from '@/utils';
-import type { Condutor, Cidade, Hub, RotaFixa } from '@/types';
+import type { Condutor, Cidade, Hub, RotaFixa, PortariaCondutor } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import { canWrite } from '@/store/auth';
 import * as XLSX from 'xlsx';
@@ -56,6 +56,7 @@ export function CondutoresPage() {
   const [cidades, setCidades] = useState<Cidade[]>([]);
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [rotas, setRotas] = useState<RotaFixa[]>([]);
+  const [portarias, setPortarias] = useState<PortariaCondutor[]>([]);
   const [search, setSearch] = useState('');
   const [filtroCidade, setFiltroCidade] = useState('');
   const [filtroHub, setFiltroHub] = useState('');
@@ -122,16 +123,18 @@ export function CondutoresPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [c, cid, h, r] = await Promise.all([
+    const [c, cid, h, r, p] = await Promise.all([
       dbCondutores.list(search),
       dbCidades.listAtivas(),
       dbHubs.listAtivos(),
       dbRotasFixas.listAtivas(),
+      dbPortarias.list(),
     ]);
     setCondutores((c.data as Condutor[]) || []);
     setCidades((cid.data as Cidade[]) || []);
     setHubs((h.data as Hub[]) || []);
     setRotas((r.data as RotaFixa[]) || []);
+    setPortarias(p.error ? [] : (p.data as PortariaCondutor[]) || []);
     setLoading(false);
   };
 
@@ -157,6 +160,17 @@ export function CondutoresPage() {
     (!filtroStatus || c.status === filtroStatus)
   ).length;
 
+  const portariasPorCondutor = useMemo(() => {
+    const map = new Map<string, PortariaCondutor[]>();
+    portarias.forEach((item) => {
+      if (!item.condutor_id) return;
+      const vinculadas = map.get(item.condutor_id) || [];
+      vinculadas.push(item);
+      map.set(item.condutor_id, vinculadas);
+    });
+    return map;
+  }, [portarias]);
+
   const exportarCondutores = () => {
     const cidadeMap = new Map(cidades.map((c) => [c.id, c.nome]));
     const hubMap = new Map(hubs.map((h) => [h.id, h.sigla]));
@@ -168,6 +182,14 @@ export function CondutoresPage() {
       'Telefone': c.telefone || '',
       'Cidade': cidadeMap.get(c.cidade_id || '') || '',
       'HUB': hubMap.get(c.hub_id || '') || '',
+      'Portaria BH': (portariasPorCondutor.get(c.id) || []).find((p) => p.portaria === 'belo_horizonte')
+        ? ((portariasPorCondutor.get(c.id) || []).find((p) => p.portaria === 'belo_horizonte')?.aprovacao ||
+          (portariasPorCondutor.get(c.id) || []).find((p) => p.portaria === 'belo_horizonte')?.status || '')
+        : '',
+      'Portaria Guarulhos': (portariasPorCondutor.get(c.id) || []).find((p) => p.portaria === 'guarulhos')
+        ? ((portariasPorCondutor.get(c.id) || []).find((p) => p.portaria === 'guarulhos')?.aprovacao ||
+          (portariasPorCondutor.get(c.id) || []).find((p) => p.portaria === 'guarulhos')?.status || '')
+        : '',
       'Senha MAGALOG': c.tem_senha_magalog ? 'Sim' : 'Não',
       'Status': statusCondutorLabel(c.status),
       'Observações': c.observacoes || '',
@@ -960,6 +982,7 @@ export function CondutoresPage() {
                   <th className="text-left px-5 py-3">Telefone</th>
                   <th className="text-left px-5 py-3">Cidade</th>
                   <th className="text-left px-5 py-3">HUB</th>
+                  <th className="text-left px-5 py-3">Portarias</th>
                   <th className="text-left px-5 py-3">Senha MAGALOG</th>
                   <th className="text-left px-5 py-3">Status</th>
                   <th className="text-right px-5 py-3">Ações</th>
@@ -1013,6 +1036,24 @@ export function CondutoresPage() {
                     </td>
                     <td className="px-5 py-3 text-slate-600">{cd.cidade?.nome || '—'}</td>
                     <td className="px-5 py-3 text-slate-600">{cd.hub?.sigla || '—'}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {(portariasPorCondutor.get(cd.id) || []).length === 0 ? (
+                          <span className="text-slate-400">—</span>
+                        ) : (
+                          (portariasPorCondutor.get(cd.id) || []).map((item) => (
+                            <span
+                              key={item.id}
+                              title={`${item.portaria === 'belo_horizonte' ? 'Belo Horizonte' : 'Guarulhos'}: ${item.aprovacao || item.status || 'Sem status'}`}
+                            >
+                              <Badge variant="info">
+                                {item.portaria === 'belo_horizonte' ? 'BH' : 'GRU'} · {item.aprovacao || item.status || 'Sem status'}
+                              </Badge>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </td>
                     <td className="px-5 py-3">
                       <Badge variant={cd.tem_senha_magalog ? 'success' : 'gray'}>
                         {cd.tem_senha_magalog ? 'Sim' : 'Não'}

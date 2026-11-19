@@ -17,6 +17,8 @@ import type {
   Grupo,
   GrupoCondutor,
   EntregadorAgenda,
+  PortariaCondutor,
+  TipoPortaria,
 } from '@/types';
 
 // ============================================================
@@ -93,6 +95,24 @@ export const dbCondutores = {
       .limit(1);
     return { data: data && data.length > 0 ? (data[0] as Condutor) : null, error };
   },
+};
+
+// ============================================================
+// PORTARIAS
+// ============================================================
+export const dbPortarias = {
+  list: (portaria?: TipoPortaria) => {
+    let q = supabase
+      .from('portaria_condutores')
+      .select('*, condutor:condutores(id, nome_completo, cpf)')
+      .order('nome');
+    if (portaria) q = q.eq('portaria', portaria);
+    return q;
+  },
+  create: (data: Partial<PortariaCondutor>) =>
+    supabase.from('portaria_condutores').insert(data).select().single(),
+  update: (id: string, data: Partial<PortariaCondutor>) =>
+    supabase.from('portaria_condutores').update(data).eq('id', id).select().single(),
 };
 
 // ============================================================

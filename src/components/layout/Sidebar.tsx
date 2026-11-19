@@ -12,6 +12,7 @@ import {
   Mail,
   Route,
   Layers,
+  ShieldCheck,
   X,
 } from 'lucide-react';
 import type { PerfilUsuario } from '@/types';
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { to: '/', label: 'Calendário', icon: CalendarDays, roles: ['admin', 'supervisor', 'operador', 'visualizador'] },
   { to: '/metas', label: 'Gestão de Metas', icon: Target, roles: ['admin', 'supervisor'] },
   { to: '/condutores', label: 'Condutores', icon: Users, roles: ['admin', 'supervisor', 'operador'] },
+  { to: '/portarias', label: 'Portarias', icon: ShieldCheck, roles: ['admin', 'supervisor', 'operador'] },
   { to: '/grupos', label: 'Grupos', icon: Layers, roles: ['admin', 'supervisor', 'operador'] },
   { to: '/rotas', label: 'Rotas Fixas', icon: Route, roles: ['admin', 'supervisor', 'operador'] },
   { to: '/escala-amanha', label: 'Escala de Amanhã', icon: Sun, roles: ['admin', 'supervisor', 'operador', 'visualizador'] },
