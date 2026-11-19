@@ -48,6 +48,22 @@ const statusCondutorLabel = (status: string) =>
 const statusCondutorVariant = (status: string): 'success' | 'danger' | 'gray' =>
   status === 'ativo' ? 'success' : status === 'desistencia' ? 'danger' : 'gray';
 
+// Situação da portaria: considera tanto o status (BH) quanto a aprovação (Guarulhos).
+const textoPortaria = (item: PortariaCondutor) =>
+  (item.aprovacao || item.status || '').trim().toLowerCase();
+
+const portariaLiberada = (item: PortariaCondutor) => {
+  const texto = textoPortaria(item);
+  if (!texto) return false;
+  if (texto.includes('nao liberado') || texto.includes('reprovado') || texto.includes('bloqueado') || texto.includes('negado')) return false;
+  return texto.includes('liberado') || texto.includes('aprovado');
+};
+
+const portariaAguardando = (item: PortariaCondutor) => {
+  const texto = textoPortaria(item);
+  return texto.includes('aguardando') || texto.includes('pendente') || texto.includes('analise');
+};
+
 export function CondutoresPage() {
   const user = useAuthStore((s) => s.user);
   const canEdit = canWrite(user?.perfil);
@@ -63,6 +79,8 @@ export function CondutoresPage() {
   const [filtroHub, setFiltroHub] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState('');
+  const [filtroSenha, setFiltroSenha] = useState('');
+  const [filtroPortaria, setFiltroPortaria] = useState('');
   const [hubAtribuicao, setHubAtribuicao] = useState('');
   const [atribuindoHub, setAtribuindoHub] = useState(false);
   const [grupoAtribuicao, setGrupoAtribuicao] = useState('');
@@ -191,6 +209,15 @@ export function CondutoresPage() {
       if (filtroHub === '__sem_hub__' && c.hub_id) return false;
       if (filtroHub && filtroHub !== '__sem_hub__' && c.hub_id !== filtroHub) return false;
       if (filtroStatus && c.status !== filtroStatus) return false;
+      if (filtroSenha === 'sim' && !c.tem_senha_magalog) return false;
+      if (filtroSenha === 'nao' && c.tem_senha_magalog) return false;
+      if (filtroPortaria) {
+        const lista = portarias.filter((p) => p.condutor_id === c.id);
+        if (filtroPortaria === 'tem' && lista.length === 0) return false;
+        if (filtroPortaria === 'sem' && lista.length > 0) return false;
+        if (filtroPortaria === 'liberada' && !lista.some(portariaLiberada)) return false;
+        if (filtroPortaria === 'aguardando' && !lista.some(portariaAguardando)) return false;
+      }
       if (filtroGrupo === '__sem_grupo__') {
         if (condutoresComGrupo.has(c.id)) return false;
       } else if (filtroGrupo) {
@@ -199,7 +226,7 @@ export function CondutoresPage() {
       }
       return true;
     });
-  }, [condutores, filtroCidade, filtroHub, filtroStatus, filtroGrupo, condutoresPorGrupo, condutoresComGrupo]);
+  }, [condutores, filtroCidade, filtroHub, filtroStatus, filtroSenha, filtroPortaria, filtroGrupo, condutoresPorGrupo, condutoresComGrupo, portarias]);
 
   const quantidadeSemHub = condutores.filter((c) =>
     !c.hub_id &&
@@ -1001,7 +1028,7 @@ export function CondutoresPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="label">Cidade</label>
             <select
@@ -1052,11 +1079,37 @@ export function CondutoresPage() {
               ))}
             </select>
           </div>
+          <div>
+            <label className="label">Senha MAGALOG</label>
+            <select
+              className="input"
+              value={filtroSenha}
+              onChange={(e) => setFiltroSenha(e.target.value)}
+            >
+              <option value="">Todas</option>
+              <option value="sim">Com senha</option>
+              <option value="nao">Sem senha</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Portaria</label>
+            <select
+              className="input"
+              value={filtroPortaria}
+              onChange={(e) => setFiltroPortaria(e.target.value)}
+            >
+              <option value="">Todas</option>
+              <option value="tem">Tem portaria</option>
+              <option value="sem">Sem portaria</option>
+              <option value="liberada">Liberada / Aprovada</option>
+              <option value="aguardando">Aguardando / Pendente</option>
+            </select>
+          </div>
         </div>
-        {(filtroCidade || filtroHub || filtroStatus || filtroGrupo) && (
+        {(filtroCidade || filtroHub || filtroStatus || filtroGrupo || filtroSenha || filtroPortaria) && (
           <button
             className="text-xs text-blue-600 hover:underline mt-2"
-            onClick={() => { setFiltroCidade(''); setFiltroHub(''); setFiltroStatus(''); setFiltroGrupo(''); }}
+            onClick={() => { setFiltroCidade(''); setFiltroHub(''); setFiltroStatus(''); setFiltroGrupo(''); setFiltroSenha(''); setFiltroPortaria(''); }}
           >
             Limpar filtros
           </button>
