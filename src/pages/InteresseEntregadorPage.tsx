@@ -14,6 +14,7 @@ import type { EntregadorAgenda, EntregadorSlot } from '@/types';
 import { DIAS_SEMANA } from '@/types';
 import { formatDateBR } from '@/utils';
 import { BrandLogo } from '@/components/ui/BrandLogo';
+import { Modal } from '@/components/ui/Modal';
 
 const maskCpf = (v: string) => {
   const d = v.replace(/\D/g, '').slice(0, 11);
@@ -43,6 +44,10 @@ export function InteresseEntregadorPage() {
   const [agenda, setAgenda] = useState<EntregadorAgenda | null>(null);
   const [acaoEm, setAcaoEm] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const [confirmacaoIntegracao, setConfirmacaoIntegracao] = useState<{
+    slot: EntregadorSlot;
+    etapa: 'pergunta' | 'alerta';
+  } | null>(null);
 
   const porData = useMemo(() => {
     const map = new Map<string, EntregadorSlot[]>();
@@ -84,10 +89,15 @@ export function InteresseEntregadorPage() {
     setAgenda(resultado);
   };
 
-  const pegarVaga = async (slot: EntregadorSlot) => {
+  const pegarVaga = async (slot: EntregadorSlot, comIntegracao: boolean) => {
+    setConfirmacaoIntegracao(null);
     setAcaoEm(slot.coleta_id);
     setFeedback(null);
-    const { data: res, error } = await dbEntregador.agendar(idCpf.replace(/\D/g, ''), slot.coleta_id);
+    const { data: res, error } = await dbEntregador.agendar(
+      idCpf.replace(/\D/g, ''),
+      slot.coleta_id,
+      comIntegracao
+    );
     setAcaoEm(null);
 
     const resultado = res as { ok: boolean; motivo: string } | null;
@@ -342,7 +352,7 @@ export function InteresseEntregadorPage() {
                                     <button
                                       className="btn-primary !py-1.5 !px-4 text-xs inline-flex items-center gap-1.5"
                                       disabled={processando}
-                                      onClick={() => pegarVaga(slot)}
+                                      onClick={() => setConfirmacaoIntegracao({ slot, etapa: 'pergunta' })}
                                     >
                                       {processando ? (
                                         <Loader2 size={14} className="animate-spin" />
@@ -459,6 +469,74 @@ export function InteresseEntregadorPage() {
           <p className="text-center text-xs text-slate-400 mt-4">Escalas CR · Gestão de Coletas</p>
         </div>
       </div>
+
+      <Modal
+        open={!!confirmacaoIntegracao}
+        onClose={() => setConfirmacaoIntegracao(null)}
+        title={confirmacaoIntegracao?.etapa === 'alerta' ? 'Confirme sua integração' : 'Integração'}
+      >
+        {confirmacaoIntegracao && (
+          <div className="space-y-4">
+            {confirmacaoIntegracao.etapa === 'pergunta' ? (
+              <>
+                <p className="text-sm text-slate-600">
+                  Você já fez a integração e o treinamento necessários para realizar uma coleta?
+                </p>
+                <div className="flex flex-col-reverse justify-end gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={acaoEm === confirmacaoIntegracao.slot.coleta_id}
+                    onClick={() => void pegarVaga(confirmacaoIntegracao.slot, true)}
+                  >
+                    Não, ainda não fiz
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={acaoEm === confirmacaoIntegracao.slot.coleta_id}
+                    onClick={() =>
+                      setConfirmacaoIntegracao({ ...confirmacaoIntegracao, etapa: 'alerta' })
+                    }
+                  >
+                    Sim, já fiz
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                  <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
+                  <p className="text-sm">
+                    Atenção: se você confirmar que já fez a integração, mas ainda não fez, isso
+                    poderá impedir sua liberação para carregar no primeiro dia. A integração é o
+                    treinamento necessário para a primeira coleta. Confirme somente se já concluiu.
+                  </p>
+                </div>
+                <div className="flex flex-col-reverse justify-end gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() =>
+                      setConfirmacaoIntegracao({ ...confirmacaoIntegracao, etapa: 'pergunta' })
+                    }
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={acaoEm === confirmacaoIntegracao.slot.coleta_id}
+                    onClick={() => void pegarVaga(confirmacaoIntegracao.slot, false)}
+                  >
+                    Sim, confirmo que já fiz
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

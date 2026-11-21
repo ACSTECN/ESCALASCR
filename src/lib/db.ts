@@ -471,8 +471,12 @@ export const dbEntregador = {
       p_telefone: telefone,
     }),
 
-  agendar: (cpf: string, coletaId: string) =>
-    supabase.rpc('entregador_agendar', { p_cpf: cpf, p_coleta_id: coletaId }),
+  agendar: (cpf: string, coletaId: string, comIntegracao: boolean) =>
+    supabase.rpc('entregador_agendar', {
+      p_cpf: cpf,
+      p_coleta_id: coletaId,
+      p_com_integracao: comIntegracao,
+    }),
 
   listaEspera: (nome: string, cpf: string, telefone: string, coletaId: string) =>
     supabase.rpc('entregador_lista_espera', {
