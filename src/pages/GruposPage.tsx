@@ -12,6 +12,8 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
@@ -73,6 +75,12 @@ export function GruposPage() {
   const [buscaRegistrado, setBuscaRegistrado] = useState('');
   const [buscaVinculado, setBuscaVinculado] = useState('');
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+
+  // Remoção em lote de vinculados
+  const [selecionadosVinculos, setSelecionadosVinculos] = useState<Set<string>>(new Set());
+  const [confirmarRemoverTodos, setConfirmarRemoverTodos] = useState(false);
+  const [confirmarRemoverSelecionados, setConfirmarRemoverSelecionados] = useState(false);
+  const [removendo, setRemovendo] = useState(false);
 
   const toggleExpandido = (grupoId: string) => {
     setExpandidos((prev) => {
@@ -165,6 +173,7 @@ export function GruposPage() {
     setResultadoVinculo(null);
     setBuscaRegistrado('');
     setBuscaVinculado('');
+    setSelecionadosVinculos(new Set());
     setLoadingVinculos(true);
     const { data } = await dbGrupos.listCondutores(grupo.id);
     setVinculados((data as GrupoCondutor[]) || []);
@@ -215,6 +224,46 @@ export function GruposPage() {
     if (!gerirGrupo) return;
     await dbGrupos.removeCondutor(gerirGrupo.id, condutorId);
     setVinculados((prev) => prev.filter((v) => v.condutor_id !== condutorId));
+    setSelecionadosVinculos((prev) => {
+      const next = new Set(prev);
+      next.delete(condutorId);
+      return next;
+    });
+    loadData();
+  };
+
+  const toggleSelecionadoVinculo = (condutorId: string) => {
+    setSelecionadosVinculos((prev) => {
+      const next = new Set(prev);
+      if (next.has(condutorId)) next.delete(condutorId);
+      else next.add(condutorId);
+      return next;
+    });
+  };
+
+  const selecionarTodosVisiveis = () => {
+    setSelecionadosVinculos(new Set(vinculadosFiltrados.map((v) => v.condutor_id)));
+  };
+
+  const removerSelecionados = async () => {
+    if (!gerirGrupo || selecionadosVinculos.size === 0) return;
+    setRemovendo(true);
+    await dbGrupos.removeCondutores(gerirGrupo.id, Array.from(selecionadosVinculos));
+    setVinculados((prev) => prev.filter((v) => !selecionadosVinculos.has(v.condutor_id)));
+    setSelecionadosVinculos(new Set());
+    setRemovendo(false);
+    setConfirmarRemoverSelecionados(false);
+    loadData();
+  };
+
+  const removerTodos = async () => {
+    if (!gerirGrupo) return;
+    setRemovendo(true);
+    await dbGrupos.removeAllCondutores(gerirGrupo.id);
+    setVinculados([]);
+    setSelecionadosVinculos(new Set());
+    setRemovendo(false);
+    setConfirmarRemoverTodos(false);
     loadData();
   };
 
@@ -529,7 +578,7 @@ export function GruposPage() {
             </div>
 
             <div className="border-t border-slate-200 pt-4">
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Vinculados ({vinculados.length})
                 </div>
@@ -544,32 +593,91 @@ export function GruposPage() {
                 </div>
               </div>
 
+              {canEdit && vinculados.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <button
+                    type="button"
+                    className="btn-ghost !py-1 !px-2 text-xs inline-flex items-center gap-1"
+                    onClick={() =>
+                      selecionadosVinculos.size === vinculadosFiltrados.length && vinculadosFiltrados.length > 0
+                        ? setSelecionadosVinculos(new Set())
+                        : selecionarTodosVisiveis()
+                    }
+                  >
+                    {selecionadosVinculos.size === vinculadosFiltrados.length && vinculadosFiltrados.length > 0 ? (
+                      <CheckSquare size={14} />
+                    ) : (
+                      <Square size={14} />
+                    )}
+                    {selecionadosVinculos.size === vinculadosFiltrados.length && vinculadosFiltrados.length > 0
+                      ? 'Limpar seleção'
+                      : `Selecionar todos (${vinculadosFiltrados.length})`}
+                  </button>
+                  <span className="text-xs text-slate-500">{selecionadosVinculos.size} selecionado(s)</span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn-secondary !py-1 !px-2.5 text-xs inline-flex items-center gap-1"
+                      onClick={() => setConfirmarRemoverSelecionados(true)}
+                      disabled={selecionadosVinculos.size === 0 || removendo}
+                    >
+                      <Trash2 size={14} /> Remover selecionados ({selecionadosVinculos.size})
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary !py-1 !px-2.5 text-xs inline-flex items-center gap-1 text-red-600"
+                      onClick={() => setConfirmarRemoverTodos(true)}
+                      disabled={removendo}
+                    >
+                      <Trash2 size={14} /> Remover todos
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {loadingVinculos ? (
                 <p className="text-xs text-slate-500">Carregando...</p>
               ) : vinculadosFiltrados.length === 0 ? (
                 <p className="text-xs text-slate-500">Nenhum entregador vinculado a este grupo.</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  {vinculadosFiltrados.map((v) => (
-                    <span
-                      key={v.condutor_id}
-                      className="inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-xs text-brand-800"
-                    >
-                      <span>
-                        {v.condutor?.nome_completo || 'Condutor'}
-                        {v.condutor?.cpf ? ` · ${v.condutor.cpf}` : ''}
+                  {vinculadosFiltrados.map((v) => {
+                    const selecionado = selecionadosVinculos.has(v.condutor_id);
+                    return (
+                      <span
+                        key={v.condutor_id}
+                        onClick={canEdit ? () => toggleSelecionadoVinculo(v.condutor_id) : undefined}
+                        className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                          selecionado
+                            ? 'border-brand-400 bg-brand-100 text-brand-900'
+                            : 'border-brand-200 bg-brand-50 text-brand-800'
+                        } ${canEdit ? 'cursor-pointer hover:border-brand-300' : ''}`}
+                      >
+                        {canEdit &&
+                          (selecionado ? (
+                            <CheckSquare size={12} />
+                          ) : (
+                            <Square size={12} className="text-brand-300" />
+                          ))}
+                        <span>
+                          {v.condutor?.nome_completo || 'Condutor'}
+                          {v.condutor?.cpf ? ` · ${v.condutor.cpf}` : ''}
+                        </span>
+                        {canEdit && (
+                          <button
+                            className="text-brand-400 hover:text-red-500"
+                            title="Remover do grupo"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removerVinculo(v.condutor_id);
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
                       </span>
-                      {canEdit && (
-                        <button
-                          className="text-brand-400 hover:text-red-500"
-                          title="Remover do grupo"
-                          onClick={() => removerVinculo(v.condutor_id)}
-                        >
-                          <X size={12} />
-                        </button>
-                      )}
-                    </span>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -591,6 +699,26 @@ export function GruposPage() {
         message={`Cuidado: excluir o grupo ${deleteTarget?.nome || ''}? Os entregadores continuam cadastrados, mas deixam de estar vinculados. Essa ação é definitiva.`}
         confirmLabel="Excluir"
         loading={deleting}
+      />
+
+      <ConfirmDialog
+        open={confirmarRemoverSelecionados}
+        onClose={() => setConfirmarRemoverSelecionados(false)}
+        onConfirm={removerSelecionados}
+        title="Remover selecionados"
+        message={`Remover ${selecionadosVinculos.size} entregador(es) do grupo ${gerirGrupo?.nome || ''}? Eles continuam cadastrados, apenas saem deste grupo.`}
+        confirmLabel="Remover"
+        loading={removendo}
+      />
+
+      <ConfirmDialog
+        open={confirmarRemoverTodos}
+        onClose={() => setConfirmarRemoverTodos(false)}
+        onConfirm={removerTodos}
+        title="Remover todos os entregadores"
+        message={`Cuidado: remover TODOS os ${vinculados.length} entregador(es) do grupo ${gerirGrupo?.nome || ''}? O grupo continua existindo, mas fica vazio. Essa ação não pode ser desfeita.`}
+        confirmLabel="Remover todos"
+        loading={removendo}
       />
     </div>
   );

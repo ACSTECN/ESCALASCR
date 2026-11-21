@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Copy, RefreshCw, History, Download } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Pencil, Trash2, Copy, RefreshCw, History, Download, Lock, Unlock } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -54,6 +54,9 @@ export function MetasPage() {
   // Delete
   const [deleteTarget, setDeleteTarget] = useState<MetaColeta | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Trava de vagas em massa por HUB
+  const [travandoHub, setTravandoHub] = useState<string | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -184,6 +187,26 @@ export function MetasPage() {
     (m) => (!filtroCidade || m.hub?.cidade_id === filtroCidade) && (!filtroHub || m.hub_id === filtroHub)
   );
 
+  // Agrega o status de trava de vagas por HUB (todos os turnos)
+  const hubsTrava = useMemo(() => {
+    const lista = filtroCidade ? hubs.filter((h) => h.cidade_id === filtroCidade) : hubs;
+    return lista.map((hub) => {
+      const metasHub = metas.filter((m) => m.hub_id === hub.id);
+      const travadas = metasHub.filter((m) => m.travar_vagas).length;
+      return { hub, total: metasHub.length, travadas };
+    });
+  }, [hubs, metas, filtroCidade]);
+
+  const alternarTravaHub = async (hub: Hub, travar: boolean) => {
+    setTravandoHub(hub.id);
+    const hoje = formatISO(new Date(), { representation: 'date' });
+    // Trava/libera as metas (turnos futuros) e as coletas já geradas do HUB
+    await dbMetas.setTravarVagasByHub(hub.id, travar);
+    await dbColetas.setTravarVagasByHub(hub.id, travar, hoje);
+    setTravandoHub(null);
+    await loadData();
+  };
+
   const exportarMetas = () => {
     const linhas = metasFiltradas.map((m) => ({
       'HUB': m.hub?.sigla || '',
@@ -244,6 +267,60 @@ export function MetasPage() {
           </div>
         </div>
       </div>
+
+      {/* Trava de vagas em massa por HUB */}
+      {canEdit && (
+        <div className="card p-4 mb-6">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Lock size={16} className="text-slate-500" />
+            <h2 className="text-sm font-semibold text-slate-700">Trava de vagas por HUB</h2>
+            <span className="text-xs text-slate-500">
+              Trava ou libera todos os turnos do HUB de uma vez. Vale para o auto-agendamento do entregador.
+            </span>
+          </div>
+          {hubsTrava.length === 0 ? (
+            <p className="text-xs text-slate-500">Nenhum HUB encontrado com os filtros atuais.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {hubsTrava.map(({ hub, total, travadas }) => {
+                const todasTravadas = total > 0 && travadas === total;
+                const parcial = travadas > 0 && travadas < total;
+                return (
+                  <div
+                    key={hub.id}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-slate-800">{hub.sigla}</div>
+                      <div className="truncate text-xs text-slate-500">
+                        {hub.cidade?.nome ? `${hub.cidade.nome} · ` : ''}
+                        {total} turno(s)
+                        {parcial ? ` · ${travadas} travado(s)` : ''}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={todasTravadas ? 'danger' : parcial ? 'info' : 'gray'}>
+                        {todasTravadas ? 'Travado' : parcial ? 'Parcial' : 'Liberado'}
+                      </Badge>
+                      <button
+                        className={`btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1 ${
+                          todasTravadas ? '' : 'text-red-600'
+                        }`}
+                        disabled={travandoHub === hub.id}
+                        onClick={() => alternarTravaHub(hub, !todasTravadas)}
+                        title={todasTravadas ? 'Liberar vagas do HUB' : 'Travar vagas do HUB'}
+                      >
+                        {todasTravadas ? <Unlock size={14} /> : <Lock size={14} />}
+                        {travandoHub === hub.id ? '...' : todasTravadas ? 'Liberar' : 'Travar tudo'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Lista de metas */}
       <div className="card overflow-hidden">

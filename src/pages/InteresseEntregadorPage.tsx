@@ -109,7 +109,7 @@ export function InteresseEntregadorPage() {
       );
       setFeedback({
         tipo: 'ok',
-        texto: `Agendado em ${formatDateBR(slot.data_coleta)} · ${slot.horario}.`,
+        texto: `Confirmado em ${formatDateBR(slot.data_coleta)} · ${slot.horario}.`,
       });
       return;
     }

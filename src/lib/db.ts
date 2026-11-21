@@ -191,6 +191,13 @@ export const dbColetas = {
   update: (id: string, data: Partial<Coleta>) =>
     supabase.from('coletas').update(data).eq('id', id).select().single(),
 
+  // Trava/libera as vagas de todas as coletas de um HUB a partir de uma data
+  setTravarVagasByHub: (hubId: string, travar: boolean, fromDate?: string) => {
+    let query = supabase.from('coletas').update({ travar_vagas: travar }).eq('hub_id', hubId);
+    if (fromDate) query = query.gte('data_coleta', fromDate);
+    return query;
+  },
+
   remove: (id: string) => supabase.from('coletas').delete().eq('id', id),
 
   // Grupos liberados para esta coleta (elegibilidade do entregador)
@@ -322,6 +329,11 @@ export const dbMetas = {
   update: (id: string, data: Partial<MetaColeta>) =>
     supabase.from('metas_coletas').update(data).eq('id', id).select().single(),
   remove: (id: string) => supabase.from('metas_coletas').delete().eq('id', id),
+
+  // Trava/libera as vagas de todas as metas (turnos) de um HUB
+  setTravarVagasByHub: (hubId: string, travar: boolean) =>
+    supabase.from('metas_coletas').update({ travar_vagas: travar }).eq('hub_id', hubId),
+
   gerarRecorrentes: (hubId?: string, startDate?: string, endDate?: string) => {
     const inicio = startDate || formatISO(startOfWeek(new Date(), { weekStartsOn: 1 }), { representation: 'date' });
     const fim = endDate || formatISO(addDays(new Date(), 30), { representation: 'date' });
@@ -436,6 +448,13 @@ export const dbGrupos = {
       .delete()
       .eq('grupo_id', grupoId)
       .eq('condutor_id', condutorId),
+
+  removeCondutores: (grupoId: string, condutorIds: string[]) =>
+    supabase
+      .from('grupo_condutores')
+      .delete()
+      .eq('grupo_id', grupoId)
+      .in('condutor_id', condutorIds),
 
   removeAllCondutores: (grupoId: string) =>
     supabase.from('grupo_condutores').delete().eq('grupo_id', grupoId),
