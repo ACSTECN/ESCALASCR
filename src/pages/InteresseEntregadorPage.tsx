@@ -46,7 +46,8 @@ export function InteresseEntregadorPage() {
   const [feedback, setFeedback] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [confirmacaoIntegracao, setConfirmacaoIntegracao] = useState<{
     slot: EntregadorSlot;
-    etapa: 'pergunta' | 'alerta';
+    etapa: 'pergunta' | 'alerta' | 'comunicado';
+    comIntegracao?: boolean;
   } | null>(null);
 
   const porData = useMemo(() => {
@@ -473,7 +474,14 @@ export function InteresseEntregadorPage() {
       <Modal
         open={!!confirmacaoIntegracao}
         onClose={() => setConfirmacaoIntegracao(null)}
-        title={confirmacaoIntegracao?.etapa === 'alerta' ? 'Confirme sua integração' : 'Integração'}
+        size={confirmacaoIntegracao?.etapa === 'comunicado' ? 'lg' : 'md'}
+        title={
+          confirmacaoIntegracao?.etapa === 'alerta'
+            ? 'Confirme sua integração'
+            : confirmacaoIntegracao?.etapa === 'comunicado'
+              ? 'Aviso importante'
+              : 'Integração'
+        }
       >
         {confirmacaoIntegracao && (
           <div className="space-y-4">
@@ -487,7 +495,13 @@ export function InteresseEntregadorPage() {
                     type="button"
                     className="btn-secondary"
                     disabled={acaoEm === confirmacaoIntegracao.slot.coleta_id}
-                    onClick={() => void pegarVaga(confirmacaoIntegracao.slot, true)}
+                    onClick={() =>
+                      setConfirmacaoIntegracao({
+                        slot: confirmacaoIntegracao.slot,
+                        etapa: 'comunicado',
+                        comIntegracao: true,
+                      })
+                    }
                   >
                     Não, ainda não fiz
                   </button>
@@ -503,7 +517,7 @@ export function InteresseEntregadorPage() {
                   </button>
                 </div>
               </>
-            ) : (
+            ) : confirmacaoIntegracao.etapa === 'alerta' ? (
               <>
                 <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
                   <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
@@ -527,9 +541,53 @@ export function InteresseEntregadorPage() {
                     type="button"
                     className="btn-primary"
                     disabled={acaoEm === confirmacaoIntegracao.slot.coleta_id}
-                    onClick={() => void pegarVaga(confirmacaoIntegracao.slot, false)}
+                    onClick={() =>
+                      setConfirmacaoIntegracao({
+                        slot: confirmacaoIntegracao.slot,
+                        etapa: 'comunicado',
+                        comIntegracao: false,
+                      })
+                    }
                   >
                     Sim, confirmo que já fiz
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-slate-600">
+                  Leia o aviso abaixo com atenção. Para concluir seu agendamento, você precisa
+                  confirmar que está ciente.
+                </p>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+                  <img
+                    src="/aviso-devolucao-pacotes.jpeg"
+                    alt="Aviso importante: devolução de pacotes"
+                    className="mx-auto max-h-[70vh] w-full rounded-lg object-contain"
+                  />
+                </div>
+                <div className="flex flex-col-reverse justify-end gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() =>
+                      setConfirmacaoIntegracao({
+                        slot: confirmacaoIntegracao.slot,
+                        etapa: 'pergunta',
+                      })
+                    }
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={acaoEm === confirmacaoIntegracao.slot.coleta_id}
+                    onClick={() =>
+                      void pegarVaga(confirmacaoIntegracao.slot, confirmacaoIntegracao.comIntegracao ?? false)
+                    }
+                  >
+                    Estou ciente
                   </button>
                 </div>
               </>
