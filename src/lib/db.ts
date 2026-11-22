@@ -57,6 +57,13 @@ export const dbHubs = {
   create: (data: Partial<Hub>) => supabase.from('hubs').insert(data).select().single(),
   update: (id: string, data: Partial<Hub>) =>
     supabase.from('hubs').update(data).eq('id', id).select().single(),
+  // Define/limpa o horário de corte do autoagendamento em vários HUBs de uma vez
+  setHorarioCorte: (hubIds: string[], horario: string | null) =>
+    supabase
+      .from('hubs')
+      .update({ horario_corte: horario })
+      .in('id', hubIds)
+      .select(),
   remove: (id: string) => supabase.from('hubs').delete().eq('id', id),
 };
 
@@ -146,6 +153,28 @@ export const dbRotasFixas = {
 // ============================================================
 // COLETAS
 // ============================================================
+
+// Recalcula o campo "liberado" da coleta a partir dos grupos e dos
+// entregadores liberados individualmente.
+const sincronizarLiberacao = async (coletaId: string) => {
+  const [gruposRes, condutoresRes] = await Promise.all([
+    supabase.from('coleta_grupos').select('id', { count: 'exact', head: true }).eq('coleta_id', coletaId),
+    supabase.from('coleta_condutores').select('id', { count: 'exact', head: true }).eq('coleta_id', coletaId),
+  ]);
+
+  const liberado = (gruposRes.count || 0) > 0 || (condutoresRes.count || 0) > 0;
+
+  return supabase
+    .from('coletas')
+    .update({
+      liberado,
+      liberado_em: liberado ? new Date().toISOString() : null,
+    })
+    .eq('id', coletaId)
+    .select()
+    .single();
+};
+
 export const dbColetas = {
   listByDateRange: (startDate: string, endDate: string) =>
     supabase
@@ -154,6 +183,7 @@ export const dbColetas = {
         `*,
          hub:hubs(*, cidade:cidades(*)),
          grupos:coleta_grupos(grupo_id),
+         condutores:coleta_condutores(condutor_id, condutor:condutores(id, nome_completo, cpf)),
          agendamentos:agendamentos(*, condutor:condutores(*, rota_fixa:rotas_fixas(*)))`
       )
       .gte('data_coleta', startDate)
@@ -168,6 +198,7 @@ export const dbColetas = {
         `*,
          hub:hubs(*, cidade:cidades(*)),
          grupos:coleta_grupos(grupo_id),
+         condutores:coleta_condutores(condutor_id, condutor:condutores(id, nome_completo, cpf)),
          agendamentos:agendamentos(*, condutor:condutores(*, rota_fixa:rotas_fixas(*)))`
       )
       .eq('data_coleta', date)
@@ -180,6 +211,7 @@ export const dbColetas = {
         `*,
          hub:hubs(*, cidade:cidades(*)),
          grupos:coleta_grupos(grupo_id),
+         condutores:coleta_condutores(condutor_id, condutor:condutores(id, nome_completo, cpf)),
          agendamentos:agendamentos(*, condutor:condutores(*, rota_fixa:rotas_fixas(*)))`
       )
       .eq('id', id)
@@ -218,16 +250,29 @@ export const dbColetas = {
       if (error) return { error };
     }
 
-    return supabase
-      .from('coletas')
-      .update({
-        liberado: grupoIds.length > 0,
-        liberado_em: grupoIds.length > 0 ? new Date().toISOString() : null,
-      })
-      .eq('id', coletaId)
-      .select()
-      .single();
+    return sincronizarLiberacao(coletaId);
   },
+
+  // Libera/bloqueia a coleta para entregadores específicos (além dos grupos)
+  setCondutoresLiberados: async (coletaId: string, condutorIds: string[]) => {
+    await supabase.from('coleta_condutores').delete().eq('coleta_id', coletaId);
+
+    if (condutorIds.length > 0) {
+      const { error } = await supabase
+        .from('coleta_condutores')
+        .insert(condutorIds.map((condutor_id) => ({ coleta_id: coletaId, condutor_id })));
+      if (error) return { error };
+    }
+
+    return sincronizarLiberacao(coletaId);
+  },
+
+  // Entregadores liberados individualmente em uma coleta
+  listCondutoresLiberados: (coletaId: string) =>
+    supabase
+      .from('coleta_condutores')
+      .select('condutor_id, condutor:condutores(id, nome_completo, cpf)')
+      .eq('coleta_id', coletaId),
 
   // Remove coletas que correspondem a uma meta (mesmo hub, dia da semana e horário)
   removeByMetaCriteria: async (hubId: string, diaSemana: number, horario: string) => {

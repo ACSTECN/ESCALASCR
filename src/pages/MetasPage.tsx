@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Copy, RefreshCw, History, Download, Lock, Unlock } from 'lucide-react';
+import { Plus, Pencil, Trash2, Copy, RefreshCw, History, Download, Lock, Unlock, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -57,6 +57,11 @@ export function MetasPage() {
 
   // Trava de vagas em massa por HUB
   const [travandoHub, setTravandoHub] = useState<string | null>(null);
+
+  // Horário de corte do autoagendamento por HUB
+  const [salvandoCorte, setSalvandoCorte] = useState<string | null>(null);
+  const [corteTodos, setCorteTodos] = useState('21:00');
+  const [aplicandoCorte, setAplicandoCorte] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -207,6 +212,24 @@ export function MetasPage() {
     await loadData();
   };
 
+  const salvarCorteHub = async (hub: Hub, horario: string | null) => {
+    setSalvandoCorte(hub.id);
+    await dbHubs.setHorarioCorte([hub.id], horario);
+    setSalvandoCorte(null);
+    await loadData();
+  };
+
+  const aplicarCorteTodos = async (horario: string | null) => {
+    if (hubsFiltrados.length === 0) return;
+    setAplicandoCorte(true);
+    await dbHubs.setHorarioCorte(
+      hubsFiltrados.map((h) => h.id),
+      horario
+    );
+    setAplicandoCorte(false);
+    await loadData();
+  };
+
   const exportarMetas = () => {
     const linhas = metasFiltradas.map((m) => ({
       'HUB': m.hub?.sigla || '',
@@ -317,6 +340,74 @@ export function MetasPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Horário de corte do autoagendamento por HUB */}
+      {canEdit && (
+        <div className="card p-4 mb-6">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Clock size={16} className="text-slate-500" />
+            <h2 className="text-sm font-semibold text-slate-700">Horário de corte do autoagendamento</h2>
+            <span className="text-xs text-slate-500">
+              Fecha o auto-agendamento na véspera, no horário escolhido. Vazio = sem corte.
+            </span>
+          </div>
+
+          <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+            <div>
+              <label className="label">Aplicar a todos os HUBs listados</label>
+              <input
+                type="time"
+                className="input"
+                value={corteTodos}
+                onChange={(e) => setCorteTodos(e.target.value)}
+              />
+            </div>
+            <button
+              className="btn-primary"
+              disabled={aplicandoCorte || !corteTodos || hubsFiltrados.length === 0}
+              onClick={() => aplicarCorteTodos(corteTodos)}
+            >
+              {aplicandoCorte ? 'Aplicando...' : `Aplicar a ${hubsFiltrados.length} HUB(s)`}
+            </button>
+            <button
+              className="btn-secondary"
+              disabled={aplicandoCorte || hubsFiltrados.length === 0}
+              onClick={() => aplicarCorteTodos(null)}
+            >
+              Remover de todos
+            </button>
+          </div>
+
+          {hubsFiltrados.length === 0 ? (
+            <p className="text-xs text-slate-500">Nenhum HUB encontrado com os filtros atuais.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {hubsFiltrados.map((hub) => (
+                <div
+                  key={hub.id}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-slate-800">{hub.sigla}</div>
+                    <div className="truncate text-xs text-slate-500">
+                      {hub.cidade?.nome || '—'}
+                      {hub.horario_corte ? '' : ' · sem corte'}
+                    </div>
+                  </div>
+                  <input
+                    type="time"
+                    className="input !w-28"
+                    value={hub.horario_corte ? hub.horario_corte.slice(0, 5) : ''}
+                    disabled={salvandoCorte === hub.id}
+                    onChange={(e) => salvarCorteHub(hub, e.target.value || null)}
+                    title="Horário de corte (véspera)"
+                  />
+                </div>
+              ))}
             </div>
           )}
         </div>

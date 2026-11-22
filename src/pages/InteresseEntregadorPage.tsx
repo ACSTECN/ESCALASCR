@@ -155,6 +155,21 @@ export function InteresseEntregadorPage() {
       case 'nao_elegivel':
         setFeedback({ tipo: 'erro', texto: 'Este dia não está liberado para você.' });
         break;
+      case 'prazo_encerrado':
+        setAgenda((prev) =>
+          prev
+            ? {
+                ...prev,
+                slots: (prev.slots || []).map((s) =>
+                  s.coleta_id === slot.coleta_id
+                    ? { ...s, disponivel: false, encerrado: true }
+                    : s
+                ),
+              }
+            : prev
+        );
+        setFeedback({ tipo: 'erro', texto: 'O prazo de agendamento deste dia foi encerrado.' });
+        break;
       default:
         setFeedback({ tipo: 'erro', texto: 'Não foi possível pegar a vaga. Tente novamente.' });
     }
@@ -349,6 +364,15 @@ export function InteresseEntregadorPage() {
                                     <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
                                       <CheckCircle2 size={14} /> Você já está agendado
                                     </span>
+                                  ) : slot.encerrado ? (
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+                                      <div className="text-xs font-semibold text-slate-600">
+                                        Prazo de agendamento encerrado
+                                      </div>
+                                      <div className="mt-0.5 text-[11px] text-slate-500">
+                                        Este turno não aceita mais agendamento.
+                                      </div>
+                                    </div>
                                   ) : slot.disponivel ? (
                                     <button
                                       className="btn-primary !py-1.5 !px-4 text-xs inline-flex items-center gap-1.5"

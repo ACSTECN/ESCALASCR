@@ -28,6 +28,8 @@ export interface Hub {
   nome: string;
   cidade_id: string;
   ativo: boolean;
+  // Horário limite (na véspera da coleta) para o autoagendamento. null = sem corte.
+  horario_corte: string | null;
   is_demo: boolean;
   created_at: string;
   updated_at: string;
@@ -108,6 +110,11 @@ export interface Coleta {
   hub?: Hub;
   agendamentos?: Agendamento[];
   grupos?: { grupo_id: string }[];
+  // entregadores liberados individualmente (elegibilidade direta)
+  condutores?: {
+    condutor_id: string;
+    condutor?: { id: string; nome_completo: string; cpf: string | null };
+  }[];
   // calculado
   agendados_count?: number;
   vagas_disponiveis?: number;
@@ -199,6 +206,7 @@ export interface EntregadorSlot {
   hub_nome: string;
   cidade_nome: string | null;
   disponivel: boolean;
+  encerrado?: boolean;
   agendado: boolean;
   agendamento_id: string | null;
   na_lista_espera?: boolean;

@@ -115,6 +115,8 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
   // Liberação da agenda para grupos (elegibilidade do entregador)
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [gruposLiberados, setGruposLiberados] = useState<string[]>([]);
+  const [condutoresLiberados, setCondutoresLiberados] = useState<string[]>([]);
+  const [buscaLiberado, setBuscaLiberado] = useState('');
   const [salvandoLiberacao, setSalvandoLiberacao] = useState(false);
   const [travarVagas, setTravarVagas] = useState(false);
   const [salvandoTrava, setSalvandoTrava] = useState(false);
@@ -152,6 +154,8 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
 
   useEffect(() => {
     setGruposLiberados((coleta?.grupos || []).map((g) => g.grupo_id));
+    setCondutoresLiberados((coleta?.condutores || []).map((c) => c.condutor_id));
+    setBuscaLiberado('');
     setTravarVagas(coleta?.travar_vagas ?? false);
   }, [coleta]);
 
@@ -163,6 +167,23 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
 
   const agendamentosAtuais = coleta.agendamentos || [];
   const agendamentosAtivos = agendamentosAtuais.filter((a) => a.status !== 'cancelado');
+
+  // Busca de entregadores para liberação individual (fora dos grupos)
+  const termoLiberado = buscaLiberado.trim();
+  const condutoresParaLiberar =
+    termoLiberado.length >= 2
+      ? condutores
+          .filter((cd) => !condutoresLiberados.includes(cd.id))
+          .filter((cd) => {
+            const termo = normalizarNome(termoLiberado);
+            const digitos = termoLiberado.replace(/\D/g, '');
+            return (
+              normalizarNome(cd.nome_completo).includes(termo) ||
+              (digitos.length >= 3 && (cd.cpf || '').includes(digitos))
+            );
+          })
+          .slice(0, 8)
+      : [];
 
   const agendar = async () => {
     if (!selectedCondutor || !coleta) return;
@@ -279,6 +300,31 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
       ? gruposLiberados.filter((id) => id !== grupoId)
       : [...gruposLiberados, grupoId];
     salvarLiberacao(ids);
+  };
+
+  const salvarCondutoresLiberados = async (ids: string[]) => {
+    if (!coleta) return;
+    const anterior = condutoresLiberados;
+    setCondutoresLiberados(ids);
+    setSalvandoLiberacao(true);
+    const { error } = await dbColetas.setCondutoresLiberados(coleta.id, ids);
+    setSalvandoLiberacao(false);
+    if (error) {
+      setCondutoresLiberados(anterior);
+      alert('Não foi possível salvar a liberação agora. Tente novamente.');
+      return;
+    }
+    onRefresh?.();
+  };
+
+  const adicionarCondutorLiberado = (condutorId: string) => {
+    if (condutoresLiberados.includes(condutorId)) return;
+    setBuscaLiberado('');
+    salvarCondutoresLiberados([...condutoresLiberados, condutorId]);
+  };
+
+  const removerCondutorLiberado = (condutorId: string) => {
+    salvarCondutoresLiberados(condutoresLiberados.filter((id) => id !== condutorId));
   };
 
   const toggleTravarVagas = async () => {
@@ -845,7 +891,9 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
               <Clock size={14} /> {formatDateBR(coleta.data_coleta)} • {formatTime(coleta.horario)}
             </span>
             <Badge variant={coleta.status === 'finalizada' ? 'gray' : 'info'}>{STATUS_COLETA_LABELS[coleta.status]}</Badge>
-            {gruposLiberados.length > 0 && <Badge variant="success">LIBERADA</Badge>}
+            {gruposLiberados.length > 0 || condutoresLiberados.length > 0 ? (
+              <Badge variant="success">LIBERADA</Badge>
+            ) : null}
           </div>
         </div>
 
@@ -1064,7 +1112,69 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
                   </div>
                 )}
 
-                {gruposLiberados.length > 0 && coleta.liberado_em && (
+                <div className="mt-4 border-t border-slate-200 pt-3">
+                  <div className="mb-1 inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                    <UserPlus size={12} className="text-brand-500" /> Entregador individual
+                  </div>
+                  <p className="text-xs text-slate-500 mb-2">
+                    Libere a agenda para um entregador específico, além dos grupos.
+                  </p>
+
+                  {condutoresLiberados.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {condutoresLiberados.map((id) => {
+                        const vinculo = (coleta.condutores || []).find((x) => x.condutor_id === id);
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-800"
+                          >
+                            {vinculo?.condutor?.nome_completo || 'Entregador'}
+                            <button
+                              type="button"
+                              disabled={salvandoLiberacao}
+                              onClick={() => removerCondutorLiberado(id)}
+                              className="text-emerald-700 hover:text-emerald-900 disabled:opacity-60"
+                              title="Remover liberação"
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <input
+                    className="input"
+                    placeholder="Buscar por nome ou CPF (mín. 2 letras)"
+                    value={buscaLiberado}
+                    onChange={(e) => setBuscaLiberado(e.target.value)}
+                  />
+
+                  {termoLiberado.length >= 2 && (
+                    <div className="mt-2 max-h-44 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+                      {condutoresParaLiberar.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-slate-500">Nenhum entregador encontrado.</div>
+                      ) : (
+                        condutoresParaLiberar.map((cd) => (
+                          <button
+                            key={cd.id}
+                            type="button"
+                            disabled={salvandoLiberacao}
+                            onClick={() => adicionarCondutorLiberado(cd.id)}
+                            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 disabled:opacity-60"
+                          >
+                            <span className="truncate text-slate-700">{cd.nome_completo}</span>
+                            <Plus size={14} className="flex-shrink-0 text-brand-600" />
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {(gruposLiberados.length > 0 || condutoresLiberados.length > 0) && coleta.liberado_em && (
                   <p className="text-[11px] text-emerald-600 mt-2">
                     Liberada em {new Date(coleta.liberado_em).toLocaleString('pt-BR')}
                   </p>
