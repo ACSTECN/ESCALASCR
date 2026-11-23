@@ -180,6 +180,8 @@ export function PortariasPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PortariaCondutor | null>(null);
   const [draft, setDraft] = useState<PortariaDraft>(novoDraft('belo_horizonte'));
+  const [condutorBusca, setCondutorBusca] = useState('');
+  const [vinculoManual, setVinculoManual] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [fileName, setFileName] = useState('');
@@ -254,13 +256,20 @@ export function PortariasPage() {
     return { condutor: null, ambiguo: porNome.length > 1 };
   };
 
-  const candidatosDoRascunho = (() => {
-    const cpf = soDigitos(draft.cpf || '');
-    if (cpf.length === 11 && (condutoresPorCpf.get(cpf) || []).length > 0) {
-      return condutoresPorCpf.get(cpf) || [];
+  const condutoresFiltrados = useMemo(() => {
+    const termo = normalizar(condutorBusca);
+    const cpfTermo = soDigitos(condutorBusca);
+    const filtrados = condutores.filter((condutor) =>
+      !termo ||
+      normalizar(condutor.nome_completo).includes(termo) ||
+      (cpfTermo.length > 0 && soDigitos(condutor.cpf || '').includes(cpfTermo))
+    );
+    const selecionado = condutores.find((condutor) => condutor.id === draft.condutor_id);
+    if (selecionado && !filtrados.some((condutor) => condutor.id === selecionado.id)) {
+      filtrados.unshift(selecionado);
     }
-    return condutoresPorNome.get(normalizar(draft.nome)) || [];
-  })();
+    return filtrados.slice(0, 100);
+  }, [condutores, condutorBusca, draft.condutor_id]);
 
   const parsed = useMemo(() => parsePortaria(importText), [importText]);
   const visibleRecords = useMemo(() => {
@@ -285,6 +294,8 @@ export function PortariasPage() {
 
   const abrirCadastro = (record?: PortariaCondutor) => {
     setEditing(record || null);
+    setCondutorBusca(record?.nome || '');
+    setVinculoManual(false);
     setDraft(record ? {
       portaria: record.portaria,
       condutor_id: record.condutor_id,
@@ -315,7 +326,9 @@ export function PortariasPage() {
       portaria,
       nome,
       cpf: cpfDigits.length === 11 ? cpfDigits : null,
-      condutor_id: match.condutor?.id || draft.condutor_id || null,
+      condutor_id: vinculoManual
+        ? draft.condutor_id
+        : draft.condutor_id || match.condutor?.id || null,
     };
     setSaving(true);
     const result = editing
@@ -692,25 +705,37 @@ export function PortariasPage() {
               <input className="input" value={draft.observacoes || ''} onChange={(event) => setDraft({ ...draft, observacoes: event.target.value || null })} />
             </div>
           </div>
-          {candidatosDoRascunho.length > 1 && (
-            <div>
-              <label className="label">Escolha o condutor para vincular</label>
-              <select
-                className="input"
-                value={draft.condutor_id || ''}
-                onChange={(event) => setDraft({ ...draft, condutor_id: event.target.value || null })}
-              >
-                <option value="">Manter sem vínculo</option>
-                {candidatosDoRascunho.map((condutor) => (
-                  <option key={condutor.id} value={condutor.id}>
-                    {condutor.nome_completo} · {condutor.cpf || 'Sem CPF'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <label className="label">Associar ao cadastro de um condutor</label>
+            <input
+              className="input mb-2"
+              value={condutorBusca}
+              onChange={(event) => setCondutorBusca(event.target.value)}
+              placeholder="Buscar condutor por nome ou CPF..."
+            />
+            <select
+              className="input"
+              value={draft.condutor_id || ''}
+              onChange={(event) => {
+                setVinculoManual(true);
+                setDraft({ ...draft, condutor_id: event.target.value || null });
+              }}
+            >
+              <option value="">Salvar sem vínculo</option>
+              {condutoresFiltrados.map((condutor) => (
+                <option key={condutor.id} value={condutor.id}>
+                  {condutor.nome_completo} · {condutor.cpf || 'Sem CPF'}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-slate-500">
+              {condutoresFiltrados.length === 0
+                ? 'Nenhum condutor encontrado. Tente outro nome ou CPF.'
+                : `Selecione a pessoa correta entre os resultados${condutoresFiltrados.length === 100 ? ' (mostrando até 100)' : ''}.`}
+            </p>
+          </div>
           <p className="text-xs text-slate-500">
-            O vínculo é feito por CPF; sem CPF, somente por nome completo único. Registros ambíguos ficam para revisão manual.
+            O vínculo automático usa CPF ou nome completo único. Se não encontrar, você pode associar manualmente pelo nome ou CPF acima.
           </p>
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
             <button className="btn-secondary" onClick={() => setFormOpen(false)}><X size={15} /> Cancelar</button>
