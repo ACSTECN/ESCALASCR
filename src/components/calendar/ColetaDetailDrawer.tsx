@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, Clock, Users, Target, Plus, Trash2, Pencil, Check, Upload, Download, Square, CheckSquare, ArrowRightLeft, Search, Layers, Lock, UserPlus } from 'lucide-react';
-import type { Coleta, Condutor, Agendamento, Grupo, StatusAgendamento } from '@/types';
+import type { Coleta, Condutor, Agendamento, Grupo, GrupoCondutor, StatusAgendamento } from '@/types';
 import { calcColetaStats, dbAgendamentos, dbCondutores, dbColetas, dbGrupos, dbMensagensMagalog } from '@/lib/db';
 import { formatDateBR, formatTime, getOccupancyColor, colorClasses, toCSV, downloadFile } from '@/utils';
 import { STATUS_AGENDAMENTO_LABELS, STATUS_COLETA_LABELS } from '@/types';
@@ -121,6 +121,17 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
   const [travarVagas, setTravarVagas] = useState(false);
   const [salvandoTrava, setSalvandoTrava] = useState(false);
 
+  // Agendar grupo inteiro como confirmado
+  const [grupoAgendar, setGrupoAgendar] = useState('');
+  const [agendandoGrupo, setAgendandoGrupo] = useState(false);
+  const [resultadoGrupo, setResultadoGrupo] = useState<{
+    grupo: string;
+    total: number;
+    confirmados: number;
+    atualizados: number;
+    jaNaColeta: number;
+  } | null>(null);
+
   // Seleção múltipla
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<StatusAgendamento>('agendado');
@@ -145,6 +156,8 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
       setSelectedCondutor('');
       setBuscaNome('');
       setFiltroStatus('');
+      setGrupoAgendar('');
+      setResultadoGrupo(null);
     }
   }, [coleta]);
 
@@ -506,6 +519,82 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
       setResultadoImportacaoAtivos(resultado);
       setImportandoAtivos(false);
       if (resultado.agendados > 0) onUpdated();
+    }
+  };
+
+  const agendarGrupoComoConfirmado = async () => {
+    if (!coleta || !canEdit || !grupoAgendar || agendandoGrupo) return;
+    setAgendandoGrupo(true);
+    setResultadoGrupo(null);
+
+    const grupoNome = grupos.find((g) => g.id === grupoAgendar)?.nome || 'Grupo';
+
+    try {
+      const { data: vinculos, error: erroVinculos } = await dbGrupos.listCondutores(grupoAgendar);
+      if (erroVinculos) throw new Error(erroVinculos.message);
+
+      const membros = ((vinculos as GrupoCondutor[]) || []).filter(
+        (v) => v.condutor && v.condutor.status === 'ativo'
+      );
+      const total = membros.length;
+
+      const porCondutor = new Map(agendamentosAtuais.map((a) => [a.condutor_id, a]));
+      const nomesNaColeta = new Set(
+        agendamentosAtivos.map((a) => normalizarNome(a.condutor?.nome_completo || '')).filter(Boolean)
+      );
+
+      const paraInserir: string[] = [];
+      const paraAtualizar: string[] = [];
+      let jaNaColeta = 0;
+
+      for (const v of membros) {
+        const cd = v.condutor!;
+        const existente = porCondutor.get(cd.id);
+        if (existente) {
+          if (existente.status === 'agendado' || existente.status === 'cancelado') {
+            paraAtualizar.push(existente.id);
+          } else {
+            jaNaColeta++;
+          }
+          continue;
+        }
+        const nome = normalizarNome(cd.nome_completo || '');
+        if (nome && nomesNaColeta.has(nome)) {
+          jaNaColeta++;
+          continue;
+        }
+        paraInserir.push(cd.id);
+        if (nome) nomesNaColeta.add(nome);
+      }
+
+      let confirmados = 0;
+      for (let inicio = 0; inicio < paraInserir.length; inicio += 100) {
+        const lote = paraInserir.slice(inicio, inicio + 100);
+        const { data, error } = await dbAgendamentos.createMany(
+          lote.map((condutorId) => ({
+            coleta_id: coleta.id,
+            condutor_id: condutorId,
+            status: 'confirmado' as StatusAgendamento,
+            created_by: user?.id || null,
+          }))
+        );
+        if (error) throw new Error(error.message);
+        confirmados += data?.length ?? lote.length;
+      }
+
+      let atualizados = 0;
+      if (paraAtualizar.length > 0) {
+        const { error } = await dbAgendamentos.bulkUpdateStatus(paraAtualizar, 'confirmado');
+        if (error) throw new Error(error.message);
+        atualizados = paraAtualizar.length;
+      }
+
+      setResultadoGrupo({ grupo: grupoNome, total, confirmados, atualizados, jaNaColeta });
+      if (confirmados > 0 || atualizados > 0) onUpdated();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Falha ao agendar o grupo.');
+    } finally {
+      setAgendandoGrupo(false);
     }
   };
 
@@ -1062,6 +1151,44 @@ export function ColetaDetailDrawer({ coleta, onClose, onUpdated, onRefresh }: Co
                     {resultadoImportacaoAtivos.erros.map((erro, index) => (
                       <div key={`${index}-${erro}`} className="mt-1">{erro}</div>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {canEdit && (
+              <div className="px-6 py-4 border-t border-slate-200">
+                <label className="label inline-flex items-center gap-1.5">
+                  <Users size={14} className="text-brand-500" /> Agendar grupo como confirmado
+                </label>
+                <p className="text-xs text-slate-500 mb-2">
+                  Escolha um grupo para agendar todos os integrantes ativos já como confirmados.
+                </p>
+                <div className="flex gap-2">
+                  <select
+                    className="input min-w-0"
+                    value={grupoAgendar}
+                    onChange={(e) => setGrupoAgendar(e.target.value)}
+                  >
+                    <option value="">Selecione um grupo...</option>
+                    {grupos.map((g) => (
+                      <option key={g.id} value={g.id}>{g.nome}</option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn-primary flex-shrink-0 min-w-[52px]"
+                    onClick={agendarGrupoComoConfirmado}
+                    disabled={!grupoAgendar || agendandoGrupo}
+                    title="Agendar todos os ativos do grupo como confirmado"
+                  >
+                    <Check size={16} />
+                  </button>
+                </div>
+                {resultadoGrupo && (
+                  <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800" role="status">
+                    <strong>{resultadoGrupo.grupo}:</strong> {resultadoGrupo.confirmados} confirmado(s)
+                    {resultadoGrupo.atualizados > 0 ? `, ${resultadoGrupo.atualizados} já estavam e foram confirmado(s)` : ''}
+                    , {resultadoGrupo.jaNaColeta} já na coleta — {resultadoGrupo.total} integrante(s) ativo(s).
                   </div>
                 )}
               </div>

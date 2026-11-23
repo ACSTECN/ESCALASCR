@@ -81,6 +81,7 @@ export function CondutoresPage() {
   const [filtroGrupo, setFiltroGrupo] = useState('');
   const [filtroSenha, setFiltroSenha] = useState('');
   const [filtroPortaria, setFiltroPortaria] = useState('');
+  const [filtroRota, setFiltroRota] = useState('');
   const [hubAtribuicao, setHubAtribuicao] = useState('');
   const [atribuindoHub, setAtribuindoHub] = useState(false);
   const [grupoAtribuicao, setGrupoAtribuicao] = useState('');
@@ -224,9 +225,11 @@ export function CondutoresPage() {
         const ids = condutoresPorGrupo.get(filtroGrupo);
         if (!ids || !ids.has(c.id)) return false;
       }
+      if (filtroRota === 'com' && !c.rota_fixa_id) return false;
+      if (filtroRota === 'sem' && c.rota_fixa_id) return false;
       return true;
     });
-  }, [condutores, filtroCidade, filtroHub, filtroStatus, filtroSenha, filtroPortaria, filtroGrupo, condutoresPorGrupo, condutoresComGrupo, portarias]);
+  }, [condutores, filtroCidade, filtroHub, filtroStatus, filtroSenha, filtroPortaria, filtroGrupo, filtroRota, condutoresPorGrupo, condutoresComGrupo, portarias]);
 
   const quantidadeSemHub = condutores.filter((c) =>
     !c.hub_id &&
@@ -236,6 +239,20 @@ export function CondutoresPage() {
 
   const quantidadeSemGrupo = condutores.filter((c) =>
     !condutoresComGrupo.has(c.id) &&
+    (!filtroCidade || c.cidade_id === filtroCidade) &&
+    (!filtroHub || c.hub_id === filtroHub) &&
+    (!filtroStatus || c.status === filtroStatus)
+  ).length;
+
+  const quantidadeComRotaFixa = condutores.filter((c) =>
+    !!c.rota_fixa_id &&
+    (!filtroCidade || c.cidade_id === filtroCidade) &&
+    (!filtroHub || c.hub_id === filtroHub) &&
+    (!filtroStatus || c.status === filtroStatus)
+  ).length;
+
+  const quantidadeSemRotaFixa = condutores.filter((c) =>
+    !c.rota_fixa_id &&
     (!filtroCidade || c.cidade_id === filtroCidade) &&
     (!filtroHub || c.hub_id === filtroHub) &&
     (!filtroStatus || c.status === filtroStatus)
@@ -1105,11 +1122,23 @@ export function CondutoresPage() {
               <option value="aguardando">Aguardando / Pendente</option>
             </select>
           </div>
+          <div>
+            <label className="label">Rota fixa</label>
+            <select
+              className="input"
+              value={filtroRota}
+              onChange={(e) => setFiltroRota(e.target.value)}
+            >
+              <option value="">Todas</option>
+              <option value="com">Com rota fixa ({quantidadeComRotaFixa})</option>
+              <option value="sem">Sem rota fixa ({quantidadeSemRotaFixa})</option>
+            </select>
+          </div>
         </div>
-        {(filtroCidade || filtroHub || filtroStatus || filtroGrupo || filtroSenha || filtroPortaria) && (
+        {(filtroCidade || filtroHub || filtroStatus || filtroGrupo || filtroSenha || filtroPortaria || filtroRota) && (
           <button
             className="text-xs text-blue-600 hover:underline mt-2"
-            onClick={() => { setFiltroCidade(''); setFiltroHub(''); setFiltroStatus(''); setFiltroGrupo(''); setFiltroSenha(''); setFiltroPortaria(''); }}
+            onClick={() => { setFiltroCidade(''); setFiltroHub(''); setFiltroStatus(''); setFiltroGrupo(''); setFiltroSenha(''); setFiltroPortaria(''); setFiltroRota(''); }}
           >
             Limpar filtros
           </button>
