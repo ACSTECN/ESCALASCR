@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileSpreadsheet, MapPin, Pencil, Plus, Search, Upload, X } from 'lucide-react';
+import { FileSpreadsheet, MapPin, Pencil, Plus, RefreshCw, Search, Upload, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -176,6 +176,7 @@ export function PortariasPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [relinking, setRelinking] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PortariaCondutor | null>(null);
   const [draft, setDraft] = useState<PortariaDraft>(novoDraft('belo_horizonte'));
@@ -432,6 +433,49 @@ export function PortariasPage() {
     await loadData();
   };
 
+  const atualizarDePara = async () => {
+    if (relinking) return;
+    const pendentes = records.filter((record) => !record.condutor_id);
+    if (pendentes.length === 0) {
+      alert('Todos os registros desta portaria já estão vinculados.');
+      return;
+    }
+
+    setRelinking(true);
+    let vinculados = 0;
+    let ambiguos = 0;
+    let semCorrespondencia = 0;
+    const errors: string[] = [];
+
+    for (const record of pendentes) {
+      const match = localizarCondutor(record.nome, record.cpf || '');
+      if (match.ambiguo) {
+        ambiguos++;
+        continue;
+      }
+      if (!match.condutor) {
+        semCorrespondencia++;
+        continue;
+      }
+
+      const { error } = await dbPortarias.update(record.id, { condutor_id: match.condutor.id });
+      if (error) {
+        errors.push(`${record.nome}: ${error.message}`);
+      } else {
+        vinculados++;
+      }
+    }
+
+    await loadData();
+    setRelinking(false);
+    alert(
+      `De-para concluído para ${portariaLabel}.\n` +
+      `${vinculados} vínculo(s) atualizado(s), ${ambiguos} ambíguo(s), ` +
+      `${semCorrespondencia} sem correspondência e ${errors.length} erro(s).` +
+      (errors.length ? `\n\n${errors.slice(0, 5).join('\n')}` : '')
+    );
+  };
+
   const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -481,6 +525,15 @@ export function PortariasPage() {
         description="Importe e mantenha as liberações de Belo Horizonte e Guarulhos vinculadas aos condutores."
         actions={
           <>
+            <button
+              className="btn-secondary"
+              onClick={atualizarDePara}
+              disabled={relinking || loading || semVinculoCount === 0}
+              title="Reavaliar os registros sem vínculo usando CPF e nome normalizado"
+            >
+              <RefreshCw size={16} className={relinking ? 'animate-spin' : ''} />
+              {relinking ? 'Atualizando vínculos...' : `Atualizar de-para (${semVinculoCount})`}
+            </button>
             <button className="btn-secondary" onClick={abrirImportacao}>
               <Upload size={16} /> Importar planilha
             </button>
