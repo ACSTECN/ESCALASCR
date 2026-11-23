@@ -113,7 +113,9 @@ export function InteresseEntregadorPage() {
           ? {
               ...prev,
               slots: (prev.slots || []).map((s) =>
-                s.coleta_id === slot.coleta_id ? { ...s, agendado: true } : s
+                s.coleta_id === slot.coleta_id
+                  ? { ...s, agendado: true, status_agendamento: 'confirmado' }
+                  : s
               ),
             }
           : prev
@@ -145,10 +147,12 @@ export function InteresseEntregadorPage() {
             ? {
                 ...prev,
                 slots: (prev.slots || []).map((s) =>
-                  s.coleta_id === slot.coleta_id ? { ...s, agendado: true } : s
-                ),
-              }
-            : prev
+                s.coleta_id === slot.coleta_id
+                  ? { ...s, agendado: true, status_agendamento: 'confirmado' }
+                  : s
+              ),
+            }
+          : prev
         );
         setFeedback({ tipo: 'erro', texto: 'Você já está agendado neste dia.' });
         break;
@@ -361,9 +365,34 @@ export function InteresseEntregadorPage() {
 
                                 <div className="flex items-center gap-2">
                                   {slot.agendado ? (
-                                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                                      <CheckCircle2 size={14} /> Você já está agendado
-                                    </span>
+                                    (slot.status_agendamento === 'confirmado' ||
+                                      slot.status_agendamento === 'compareceu') ? (
+                                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                                        <CheckCircle2 size={14} /> Você já está confirmado
+                                      </span>
+                                    ) : slot.encerrado ? (
+                                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+                                        <div className="text-xs font-semibold text-slate-600">
+                                          Prazo de agendamento encerrado
+                                        </div>
+                                        <div className="mt-0.5 text-[11px] text-slate-500">
+                                          Fale com a operação para confirmar.
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        className="btn-primary !py-1.5 !px-4 text-xs inline-flex items-center gap-1.5"
+                                        disabled={processando}
+                                        onClick={() => setConfirmacaoIntegracao({ slot, etapa: 'pergunta' })}
+                                      >
+                                        {processando ? (
+                                          <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                          <CheckCircle2 size={14} />
+                                        )}
+                                        Confirmar presença
+                                      </button>
+                                    )
                                   ) : slot.encerrado ? (
                                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
                                       <div className="text-xs font-semibold text-slate-600">

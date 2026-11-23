@@ -140,6 +140,7 @@ export interface Agendamento {
   condutor_id: string;
   status: StatusAgendamento;
   is_demo: boolean;
+  origem?: 'agente' | 'sistema';
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -208,6 +209,7 @@ export interface EntregadorSlot {
   disponivel: boolean;
   encerrado?: boolean;
   agendado: boolean;
+  status_agendamento?: string | null;
   agendamento_id: string | null;
   na_lista_espera?: boolean;
 }

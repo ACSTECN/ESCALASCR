@@ -408,6 +408,16 @@ export const dbAgendamentos = {
       .gte('coleta.data_coleta', startDate)
       .lte('coleta.data_coleta', endDate),
 
+  // Historico de agendamentos (quem, status, horario e origem) por periodo da coleta
+  listHistorico: (startDate: string, endDate: string, limit = 3000) =>
+    supabase
+      .from('agendamentos')
+      .select('id, status, origem, created_at, updated_at, created_by, coleta:coletas(id, data_coleta, horario, hub:hubs(id, sigla, nome)), condutor:condutores(id, nome_completo, cpf)')
+      .gte('coleta.data_coleta', startDate)
+      .lte('coleta.data_coleta', endDate)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+
   create: (data: Partial<Agendamento>) =>
     supabase.from('agendamentos').insert(data).select().single(),
 
