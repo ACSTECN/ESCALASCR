@@ -192,6 +192,7 @@ export function PortariasPage() {
     atualizados: number;
     vinculados: number;
     semVinculo: number;
+    duplicados: number;
     errors: string[];
   } | null>(null);
 
@@ -272,6 +273,18 @@ export function PortariasPage() {
   }, [condutores, condutorBusca, draft.condutor_id]);
 
   const parsed = useMemo(() => parsePortaria(importText), [importText]);
+
+  // Linhas repetidas no próprio arquivo (mesmo CPF ou mesmo nome normalizado).
+  const duplicadosArquivo = useMemo(() => {
+    const vistos = new Set<string>();
+    let repetidos = 0;
+    for (const row of parsed.rows) {
+      const chave = row.cpf ? `cpf:${row.cpf}` : `nome:${normalizar(row.nome)}`;
+      if (vistos.has(chave)) repetidos++;
+      else vistos.add(chave);
+    }
+    return repetidos;
+  }, [parsed]);
   const visibleRecords = useMemo(() => {
     const term = normalizar(search);
     if (!term) return records;
@@ -352,6 +365,7 @@ export function PortariasPage() {
         atualizados: 0,
         vinculados: 0,
         semVinculo: 0,
+        duplicados: 0,
         errors: parsed.errors.length ? parsed.errors : ['Nenhum registro válido encontrado.'],
       });
       return;
@@ -367,6 +381,7 @@ export function PortariasPage() {
         atualizados: 0,
         vinculados: 0,
         semVinculo: 0,
+        duplicados: 0,
         errors: [existentesError.message],
       });
       setImporting(false);
@@ -380,12 +395,14 @@ export function PortariasPage() {
     let atualizados = 0;
     let vinculados = 0;
     let semVinculo = 0;
+    let duplicados = 0;
 
     for (const row of parsed.rows) {
       const cpf = row.cpf || null;
       const chaveLinha = cpf ? `cpf:${cpf}` : `nome:${normalizar(row.nome)}`;
       if (seen.has(chaveLinha)) {
-        errors.push(`${row.nome}: duplicado no arquivo; a primeira ocorrência foi mantida.`);
+        duplicados++;
+        errors.push(`${row.nome}: já aparece antes neste arquivo; a primeira ocorrência foi mantida.`);
         continue;
       }
       seen.add(chaveLinha);
@@ -440,6 +457,7 @@ export function PortariasPage() {
       atualizados,
       vinculados,
       semVinculo,
+      duplicados,
       errors,
     });
     setImporting(false);
@@ -516,6 +534,7 @@ export function PortariasPage() {
         atualizados: 0,
         vinculados: 0,
         semVinculo: 0,
+        duplicados: 0,
         errors: ['Não foi possível ler o arquivo. Tente .xlsx, .xls, .csv ou .txt.'],
       });
     }
@@ -766,6 +785,11 @@ export function PortariasPage() {
             <div className="rounded-xl border border-slate-200">
               <div className="border-b border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">
                 Prévia: {parsed.rows.length} linha(s) reconhecida(s) de {parsed.total}
+                {duplicadosArquivo > 0 && (
+                  <span className="ml-2 font-normal text-amber-700">
+                    · {duplicadosArquivo} repetida(s) no arquivo (serão ignoradas)
+                  </span>
+                )}
               </div>
               {parsed.errors.length > 0 && <div className="px-3 py-2 text-xs text-amber-700">{parsed.errors[0]}</div>}
               <div className="max-h-56 overflow-auto">
@@ -797,7 +821,7 @@ export function PortariasPage() {
           )}
           {importResult && (
             <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-              <p><strong>{importResult.inseridos}</strong> novos · <strong>{importResult.atualizados}</strong> atualizados · <strong>{importResult.vinculados}</strong> vinculados · <strong>{importResult.semVinculo}</strong> sem vínculo</p>
+              <p><strong>{importResult.inseridos}</strong> novos · <strong>{importResult.atualizados}</strong> atualizados · <strong>{importResult.vinculados}</strong> vinculados · <strong>{importResult.semVinculo}</strong> sem vínculo{importResult.duplicados > 0 && <> · <strong>{importResult.duplicados}</strong> linha(s) repetida(s) no arquivo (ignoradas)</>}</p>
               {importResult.errors.length > 0 && (
                 <div className="max-h-24 overflow-auto text-xs text-amber-800">
                   {importResult.errors.slice(0, 8).map((error, index) => <p key={index}>{error}</p>)}

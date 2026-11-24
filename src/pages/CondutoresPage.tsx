@@ -127,6 +127,8 @@ export function CondutoresPage() {
     updated: number;
     ignorados: number;
     preservados: number;
+    duplicados: number;
+    duplicadosLista: string[];
     comSenhaMagalog: number;
     semSenhaMagalog: number;
     errors: string[];
@@ -166,6 +168,14 @@ export function CondutoresPage() {
   useEffect(() => {
     loadData();
   }, [search]);
+
+  // Lista completa (sem filtro de busca) usada apenas para a prévia de
+  // duplicidade da importação, garantindo que a checagem não fique parcial.
+  const [todosCondutores, setTodosCondutores] = useState<Condutor[]>([]);
+  useEffect(() => {
+    if (!importOpen) return;
+    dbCondutores.list().then(({ data }) => setTodosCondutores((data as Condutor[]) || []));
+  }, [importOpen]);
 
   const hubsFiltro = filtroCidade ? hubs.filter((h) => h.cidade_id === filtroCidade) : hubs;
 
@@ -514,6 +524,66 @@ export function CondutoresPage() {
       .slice(0, 2)
       .join(' ');
 
+  // Índice de deduplicação dos condutores já cadastrados. A importação usa este
+  // índice para NUNCA criar um cadastro repetido: casando por CPF, depois por
+  // nome completo normalizado e, por fim, por primeiro + segundo nome (quando
+  // houver um único candidato). Sempre que casar, o registro existente é
+  // atualizado em vez de gerar uma nova linha.
+  const criarIndiceCondutores = (lista: Condutor[]) => {
+    const porChave = new Map<string, Condutor>();
+    const porNome = new Map<string, Condutor>();
+    const porCpf = new Map<string, Condutor>();
+    const porNomeCurto = new Map<string, Condutor[]>();
+
+    const registrar = (cd: Condutor) => {
+      const nome = normalizarNome(cd.nome_completo || '');
+      const cpf = (cd.cpf || '').replace(/\D/g, '');
+      const curto = nomePrimeiroSegundo(cd.nome_completo || '');
+      if (nome) {
+        porChave.set(`${nome}::${cpf}`, cd);
+        porNome.set(nome, cd);
+      }
+      if (cpf) porCpf.set(cpf, cd);
+      if (curto) {
+        const listaCurto = porNomeCurto.get(curto) || [];
+        if (!listaCurto.some((item) => item.id === cd.id)) {
+          listaCurto.push(cd);
+          porNomeCurto.set(curto, listaCurto);
+        }
+      }
+    };
+
+    lista.forEach(registrar);
+    return { porChave, porNome, porCpf, porNomeCurto, registrar };
+  };
+
+  const localizarExistente = (
+    indice: ReturnType<typeof criarIndiceCondutores>,
+    nome: string,
+    cpf: string
+  ): { condutor: Condutor | null; ambiguo: boolean; motivo: 'cpf' | 'nome' | null } => {
+    const nomeNormalizado = normalizarNome(nome);
+    const cpfDigits = (cpf || '').replace(/\D/g, '');
+
+    const porChave = indice.porChave.get(`${nomeNormalizado}::${cpfDigits}`);
+    if (porChave) return { condutor: porChave, ambiguo: false, motivo: 'nome' };
+
+    if (cpfDigits.length === 11) {
+      const porCpf = indice.porCpf.get(cpfDigits);
+      if (porCpf) return { condutor: porCpf, ambiguo: false, motivo: 'cpf' };
+    }
+
+    const porNome = indice.porNome.get(nomeNormalizado);
+    if (porNome) return { condutor: porNome, ambiguo: false, motivo: 'nome' };
+
+    const curto = nomePrimeiroSegundo(nome);
+    const candidatos = (indice.porNomeCurto.get(curto) || []).filter(Boolean);
+    if (candidatos.length === 1) return { condutor: candidatos[0], ambiguo: false, motivo: 'nome' };
+    if (candidatos.length > 1) return { condutor: null, ambiguo: true, motivo: null };
+
+    return { condutor: null, ambiguo: false, motivo: null };
+  };
+
   const parseDelimitedLine = (line: string, delimiter: string) => {
     if (delimiter === '\t') return line.split('\t').map((part) => part.trim());
 
@@ -804,6 +874,24 @@ export function CondutoresPage() {
     [importPreview, importMapping, importHub, hubs, mensagensComSenha]
   );
 
+  // Prévia de duplicidade: mostra, antes de importar, quais linhas da planilha
+  // já existem no cadastro e por isso serão atualizadas (sem gerar duplicata).
+  const duplicadosPreview = useMemo(() => {
+    if (importParsed.registros.length === 0 || todosCondutores.length === 0) return [];
+    const indice = criarIndiceCondutores(todosCondutores);
+    const achados: { linha: string; existente: string; ambiguo: boolean }[] = [];
+    for (const registro of importParsed.registros) {
+      const localizado = localizarExistente(indice, registro.nome, registro.cpf);
+      if (localizado.condutor) {
+        achados.push({ linha: registro.nome, existente: localizado.condutor.nome_completo, ambiguo: false });
+      } else if (localizado.ambiguo) {
+        achados.push({ linha: registro.nome, existente: 'mais de um cadastro parecido', ambiguo: true });
+      }
+    }
+    return achados;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importParsed, todosCondutores]);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -841,6 +929,8 @@ export function CondutoresPage() {
         updated: 0,
         ignorados: 0,
         preservados: 0,
+        duplicados: 0,
+        duplicadosLista: [],
         comSenhaMagalog: 0,
         semSenhaMagalog: 0,
         errors: ['Não foi possível ler o arquivo. Tente salvar como .xlsx ou colar os dados na caixa abaixo.'],
@@ -864,6 +954,8 @@ export function CondutoresPage() {
         updated: 0,
         ignorados: parsed.ignorados,
         preservados: 0,
+        duplicados: 0,
+        duplicadosLista: [],
         comSenhaMagalog: 0,
         semSenhaMagalog: 0,
         errors: parsed.errors.length > 0
@@ -876,61 +968,36 @@ export function CondutoresPage() {
 
     const { data: existentesData } = await dbCondutores.list();
     const existentes = (existentesData as Condutor[]) || [];
-    const existentesMap = new Map<string, Condutor>();
-    const existentesPorNome = new Map<string, Condutor>();
-    const existentesPorCpf = new Map<string, Condutor>();
-    const existentesPorNomeCurto = new Map<string, Condutor[]>();
-
-    const registrarCondutor = (cd: Condutor) => {
-      const nomeNormalizado = normalizarNome(cd.nome_completo || '');
-      const cpfNormalizado = (cd.cpf || '').replace(/\D/g, '');
-      const nomeCurto = nomePrimeiroSegundo(cd.nome_completo || '');
-
-      existentesMap.set(`${nomeNormalizado}::${cpfNormalizado}`, cd);
-      if (nomeNormalizado) existentesPorNome.set(nomeNormalizado, cd);
-      if (cpfNormalizado) existentesPorCpf.set(cpfNormalizado, cd);
-      if (nomeCurto) {
-        const lista = existentesPorNomeCurto.get(nomeCurto) || [];
-        if (!lista.some((item) => item.id === cd.id)) {
-          lista.push(cd);
-          existentesPorNomeCurto.set(nomeCurto, lista);
-        }
-      }
-    };
-
-    existentes.forEach(registrarCondutor);
+    const indice = criarIndiceCondutores(existentes);
 
     let imported = 0;
     let updated = 0;
     let preservados = 0;
+    let duplicados = 0;
+    const duplicadosLista: string[] = [];
     const errors = [...parsed.errors];
 
     for (const item of parsed.registros) {
-      const key = `${normalizarNome(item.nome)}::${item.cpf}`;
-      const nomeNormalizado = normalizarNome(item.nome);
-      const nomeCurto = nomePrimeiroSegundo(item.nome);
+      const localizado = localizarExistente(indice, item.nome, item.cpf);
 
-      let existente = existentesMap.get(key);
-
-      if (!existente && item.cpf) {
-        existente = existentesPorCpf.get(item.cpf);
+      // Vários cadastros casam por primeiro + segundo nome: não cria nada e
+      // deixa a linha para revisão manual, evitando gerar duplicata.
+      if (localizado.ambiguo) {
+        errors.push(`${item.nome}: já existem cadastros com o mesmo primeiro e segundo nome. Revise manualmente antes de importar.`);
+        continue;
       }
 
-      if (!existente) {
-        existente = existentesPorNome.get(nomeNormalizado);
-      }
-
-      if (!existente && nomeCurto) {
-        const candidatos = (existentesPorNomeCurto.get(nomeCurto) || []).filter(Boolean);
-        if (candidatos.length === 1) {
-          existente = candidatos[0];
-        } else if (candidatos.length > 1) {
-          errors.push(`${item.nome}: duplicidade potencial por primeiro e segundo nome. Revise manualmente.`);
-          continue;
-        }
-      }
+      const existente = localizado.condutor;
 
       if (existente) {
+        // Linha já existe na base: atualiza o cadastro existente em vez de criar outro.
+        duplicados++;
+        if (duplicadosLista.length < 20) {
+          duplicadosLista.push(
+            `${item.nome} → ${existente.nome_completo}${localizado.motivo === 'cpf' ? ' (mesmo CPF)' : ''}`
+          );
+        }
+
         const updateData: Partial<Condutor> = {};
 
         if (item.cpf && !existente.cpf) updateData.cpf = item.cpf;
@@ -957,7 +1024,7 @@ export function CondutoresPage() {
             errors.push(`${item.nome}: ${error.message}`);
             continue;
           }
-          registrarCondutor({ ...existente, ...(atualizado as Condutor), ...updateData });
+          indice.registrar({ ...existente, ...(atualizado as Condutor), ...updateData });
           updated++;
         }
         continue;
@@ -980,7 +1047,7 @@ export function CondutoresPage() {
       }
 
       if (criado) {
-        registrarCondutor(criado as Condutor);
+        indice.registrar(criado as Condutor);
         imported++;
       }
     }
@@ -991,6 +1058,8 @@ export function CondutoresPage() {
       updated,
       ignorados: parsed.ignorados,
       preservados,
+      duplicados,
+      duplicadosLista,
       comSenhaMagalog: parsed.registros.filter((item) => item.temSenhaMagalog).length,
       semSenhaMagalog: parsed.registros.filter((item) => !item.temSenhaMagalog).length,
       errors,
@@ -1582,11 +1651,28 @@ export function CondutoresPage() {
             </div>
           )}
 
+          {duplicadosPreview.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-medium">
+                ⚠️ {duplicadosPreview.length} linha(s) desta planilha já existem no cadastro e serão atualizadas (não geram duplicata):
+              </p>
+              <div className="mt-1 max-h-24 space-y-0.5 overflow-auto text-xs">
+                {duplicadosPreview.slice(0, 8).map((item, index) => (
+                  <p key={`${item.linha}-${index}`}>{item.linha} → {item.existente}</p>
+                ))}
+                {duplicadosPreview.length > 8 && <p>Mais {duplicadosPreview.length - 8} linha(s).</p>}
+              </div>
+            </div>
+          )}
+
           {importResult && (
             <div className={`p-3 rounded-lg text-sm ${importResult.errors.length === 0 ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
               <div className="space-y-1">
                 <p>✅ {importResult.imported} condutor(es) novo(s) importado(s)</p>
                 <p>🔄 {importResult.updated} condutor(es) já existentes atualizado(s)</p>
+                {importResult.duplicados > 0 && (
+                  <p>🔁 {importResult.duplicados} linha(s) já existiam na base e foram atualizadas (duplicados evitados)</p>
+                )}
                 <p>🔐 Senha MAGALOG: {importResult.comSenhaMagalog} Sim / {importResult.semSenhaMagalog} Não</p>
                 {importResult.ignorados > 0 && (
                   <p>⏭️ {importResult.ignorados} linha(s) ignorada(s) (não motorista)</p>
