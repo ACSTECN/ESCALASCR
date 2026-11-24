@@ -427,3 +427,102 @@ html.dark .recharts-default-tooltip .recharts-tooltip-label,
 html.dark .recharts-default-tooltip .recharts-tooltip-item {
   color: #e2e8f0 !important;
 }
+
+/* ============================================================
+   TEMA NATALINO (html.natal)
+   Acentos verde/dourado sobre a base dark tech, pisca-pisca na
+   sidebar e neve leve nas telas de hero. Sem fundo branco.
+   ============================================================ */
+html.natal .tech-hero {
+  background-image:
+    radial-gradient(circle at top left, rgba(16, 185, 129, 0.28), transparent 26%),
+    radial-gradient(circle at 78% 18%, rgba(251, 191, 36, 0.2), transparent 26%),
+    linear-gradient(135deg, rgba(2, 6, 23, 0.98), rgba(4, 22, 17, 0.96));
+}
+
+html.natal .neon-divider {
+  background-image: linear-gradient(to right, transparent, rgba(52, 211, 153, 0.75), transparent);
+}
+
+html.dark.natal body {
+  background-image:
+    radial-gradient(circle at top left, rgba(16, 185, 129, 0.16), transparent 24%),
+    radial-gradient(circle at 88% 6%, rgba(251, 191, 36, 0.12), transparent 20%),
+    linear-gradient(180deg, #020617 0%, #04140f 35%, #030712 100%);
+}
+
+/* --- Pisca-pisca na borda da sidebar --- */
+html.natal .natal-lights {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 6px;
+  pointer-events: none;
+  background-image: radial-gradient(circle, rgba(52, 211, 153, 0.95) 0 1.5px, transparent 2.2px);
+  background-size: 6px 28px;
+  background-repeat: repeat-y;
+  filter: drop-shadow(0 0 6px rgba(52, 211, 153, 0.95));
+  animation: natal-twinkle 2.8s ease-in-out infinite;
+}
+html.natal .natal-lights::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(251, 191, 36, 0.95) 0 1.5px, transparent 2.2px);
+  background-size: 6px 28px;
+  background-position: 0 14px;
+  background-repeat: repeat-y;
+  filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.9));
+  animation: natal-twinkle 2.8s ease-in-out infinite 1.4s;
+}
+
+@keyframes natal-twinkle {
+  0%,
+  100% {
+    opacity: 0.28;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* --- Neve leve (telas de hero) --- */
+.natal-snow {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.natal-snow-flake {
+  position: absolute;
+  top: -8%;
+  border-radius: 9999px;
+  background: rgba(226, 232, 240, 0.9);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.65);
+  animation-name: natal-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes natal-fall {
+  0% {
+    top: -8%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.85;
+  }
+  100% {
+    top: 104%;
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.natal .natal-lights,
+  html.natal .natal-lights::after,
+  .natal-snow-flake {
+    animation: none;
+  }
+}
