@@ -245,16 +245,26 @@ export function PortariasPage() {
     return map;
   }, [condutores]);
 
+  const resolverCpfDuplicado = (candidatos: Condutor[]) => {
+    if (candidatos.length <= 1) {
+      return { condutor: candidatos[0] || null, ambiguo: false, duplicados: 0 };
+    }
+    const nomes = new Set(candidatos.map((condutor) => normalizar(condutor.nome_completo)));
+    if (nomes.size === 1) {
+      return { condutor: candidatos[0], ambiguo: false, duplicados: candidatos.length - 1 };
+    }
+    return { condutor: null, ambiguo: true, duplicados: 0 };
+  };
+
   const localizarCondutor = (nome: string, cpf: string) => {
     const cpfDigits = soDigitos(cpf);
     if (cpfDigits.length === 11) {
       const porCpf = condutoresPorCpf.get(cpfDigits) || [];
-      if (porCpf.length === 1) return { condutor: porCpf[0], ambiguo: false };
-      if (porCpf.length > 1) return { condutor: null, ambiguo: true };
+      if (porCpf.length > 0) return resolverCpfDuplicado(porCpf);
     }
     const porNome = condutoresPorNome.get(normalizar(nome)) || [];
-    if (porNome.length === 1) return { condutor: porNome[0], ambiguo: false };
-    return { condutor: null, ambiguo: porNome.length > 1 };
+    if (porNome.length === 1) return { condutor: porNome[0], ambiguo: false, duplicados: 0 };
+    return { condutor: null, ambiguo: porNome.length > 1, duplicados: 0 };
   };
 
   const condutoresFiltrados = useMemo(() => {
@@ -502,14 +512,14 @@ export function PortariasPage() {
       const cpfDigits = soDigitos(cpf);
       if (cpfDigits.length === 11) {
         const matchesCpf = porCpf.get(cpfDigits) || [];
-        if (matchesCpf.length === 1) return { condutor: matchesCpf[0], ambiguo: false };
-        if (matchesCpf.length > 1) return { condutor: null, ambiguo: true };
+        if (matchesCpf.length > 0) return resolverCpfDuplicado(matchesCpf);
       }
       const matchesNome = porNome.get(normalizar(nome)) || [];
-      if (matchesNome.length === 1) return { condutor: matchesNome[0], ambiguo: false };
-      return { condutor: null, ambiguo: matchesNome.length > 1 };
+      if (matchesNome.length === 1) return { condutor: matchesNome[0], ambiguo: false, duplicados: 0 };
+      return { condutor: null, ambiguo: matchesNome.length > 1, duplicados: 0 };
     };
     let vinculados = 0;
+    let duplicadosResolvidos = 0;
     let ambiguos = 0;
     let semCorrespondencia = 0;
     const errors: string[] = [];
@@ -528,12 +538,12 @@ export function PortariasPage() {
         }
         continue;
       }
-
       const { error } = await dbPortarias.update(record.id, { condutor_id: match.condutor.id });
       if (error) {
         errors.push(`${record.nome}: ${error.message}`);
       } else {
         vinculados++;
+        duplicadosResolvidos += match.duplicados;
       }
     }
 
@@ -541,7 +551,8 @@ export function PortariasPage() {
     setRelinking(false);
     alert(
       'Atualização geral de vínculos concluída.\n' +
-      `${vinculados} vínculo(s) atualizado(s), ${ambiguos} ambíguo(s), ` +
+      `${vinculados} vínculo(s) atualizado(s), ${duplicadosResolvidos} cadastro(s) duplicado(s) resolvido(s), ` +
+      `${ambiguos} ambíguo(s), ` +
       `${semCorrespondencia} sem correspondência e ${errors.length} erro(s).\n` +
       'Os vínculos que já existiam foram preservados.' +
       (semCorrespondenciaNomes.length ? `\n\nSem correspondência:\n${semCorrespondenciaNomes.join('\n')}` : '') +
