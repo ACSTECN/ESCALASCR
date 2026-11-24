@@ -17,6 +17,7 @@ import { InteresseEntregadorPage } from '@/pages/InteresseEntregadorPage';
 import { MensagensMagalogPage } from '@/pages/MensagensMagalogPage';
 import { PortariasPage } from '@/pages/PortariasPage';
 import { useInitAuth } from '@/hooks/useAuth';
+import { NatalSnow } from '@/components/ui/NatalSnow';
 
 function AppRoutes() {
   useInitAuth();
@@ -132,6 +133,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
+      <NatalSnow />
       <AppRoutes />
     </BrowserRouter>
   );

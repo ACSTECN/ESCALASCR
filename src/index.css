@@ -429,68 +429,46 @@ html.dark .recharts-default-tooltip .recharts-tooltip-item {
 }
 
 /* ============================================================
-   TEMA NATALINO (html.natal)
-   Acentos verde/dourado sobre a base dark tech, pisca-pisca na
-   sidebar e neve leve nas telas de hero. Sem fundo branco.
+   TEMA FESTIVO (html.natal) — PRETO E VERMELHO + NEVE
+   Fixo para todos os acessos enquanto o periodo durar.
+   Para voltar ao tema antigo: remover as classes 'dark' e
+   'natal' do <html> em index.html e este bloco.
    ============================================================ */
+html.natal body {
+  background-color: #050506;
+  background-image:
+    radial-gradient(circle at top left, rgba(220, 38, 38, 0.18), transparent 26%),
+    radial-gradient(circle at 86% 8%, rgba(153, 27, 27, 0.16), transparent 24%),
+    linear-gradient(180deg, #050506 0%, #140608 38%, #050506 100%);
+}
+
 html.natal .tech-hero {
   background-image:
-    radial-gradient(circle at top left, rgba(16, 185, 129, 0.28), transparent 26%),
-    radial-gradient(circle at 78% 18%, rgba(251, 191, 36, 0.2), transparent 26%),
-    linear-gradient(135deg, rgba(2, 6, 23, 0.98), rgba(4, 22, 17, 0.96));
+    radial-gradient(circle at top left, rgba(220, 38, 38, 0.3), transparent 28%),
+    radial-gradient(circle at 80% 18%, rgba(127, 29, 29, 0.26), transparent 26%),
+    linear-gradient(135deg, rgba(5, 5, 6, 0.98), rgba(26, 8, 10, 0.96));
+}
+
+html.natal .tech-surface {
+  background-image:
+    radial-gradient(circle at top left, rgba(220, 38, 38, 0.1), transparent 22%),
+    linear-gradient(135deg, rgba(5, 5, 6, 0.98), rgba(18, 6, 8, 0.94));
+}
+
+html.natal .card,
+html.natal .tech-panel {
+  border-color: rgba(220, 38, 38, 0.22);
 }
 
 html.natal .neon-divider {
-  background-image: linear-gradient(to right, transparent, rgba(52, 211, 153, 0.75), transparent);
+  background-image: linear-gradient(to right, transparent, rgba(239, 68, 68, 0.75), transparent);
 }
 
-html.dark.natal body {
-  background-image:
-    radial-gradient(circle at top left, rgba(16, 185, 129, 0.16), transparent 24%),
-    radial-gradient(circle at 88% 6%, rgba(251, 191, 36, 0.12), transparent 20%),
-    linear-gradient(180deg, #020617 0%, #04140f 35%, #030712 100%);
-}
-
-/* --- Pisca-pisca na borda da sidebar --- */
-html.natal .natal-lights {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 0;
-  width: 6px;
-  pointer-events: none;
-  background-image: radial-gradient(circle, rgba(52, 211, 153, 0.95) 0 1.5px, transparent 2.2px);
-  background-size: 6px 28px;
-  background-repeat: repeat-y;
-  filter: drop-shadow(0 0 6px rgba(52, 211, 153, 0.95));
-  animation: natal-twinkle 2.8s ease-in-out infinite;
-}
-html.natal .natal-lights::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(circle, rgba(251, 191, 36, 0.95) 0 1.5px, transparent 2.2px);
-  background-size: 6px 28px;
-  background-position: 0 14px;
-  background-repeat: repeat-y;
-  filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.9));
-  animation: natal-twinkle 2.8s ease-in-out infinite 1.4s;
-}
-
-@keyframes natal-twinkle {
-  0%,
-  100% {
-    opacity: 0.28;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-/* --- Neve leve (telas de hero) --- */
+/* --- Neve caindo em todas as telas --- */
 .natal-snow {
-  position: absolute;
+  position: fixed;
   inset: 0;
+  z-index: 40;
   overflow: hidden;
   pointer-events: none;
 }
@@ -499,7 +477,7 @@ html.natal .natal-lights::after {
   top: -8%;
   border-radius: 9999px;
   background: rgba(226, 232, 240, 0.9);
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.65);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
   animation-name: natal-fall;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
@@ -520,8 +498,6 @@ html.natal .natal-lights::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html.natal .natal-lights,
-  html.natal .natal-lights::after,
   .natal-snow-flake {
     animation: none;
   }

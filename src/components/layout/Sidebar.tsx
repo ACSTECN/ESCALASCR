@@ -69,7 +69,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         }`}
       >
         <div className="absolute inset-0 tech-grid opacity-30" />
-        <div className="natal-lights" aria-hidden="true" />
 
         {/* Logo */}
         <div className="relative flex items-start justify-between px-5 py-5 border-b border-white/10">

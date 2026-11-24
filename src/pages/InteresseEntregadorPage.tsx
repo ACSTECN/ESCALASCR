@@ -15,8 +15,6 @@ import { DIAS_SEMANA } from '@/types';
 import { formatDateBR } from '@/utils';
 import { BrandLogo } from '@/components/ui/BrandLogo';
 import { Modal } from '@/components/ui/Modal';
-import { NatalSnow } from '@/components/ui/NatalSnow';
-import { useUIStore } from '@/store/ui';
 
 const maskCpf = (v: string) => {
   const d = v.replace(/\D/g, '').slice(0, 11);
@@ -38,7 +36,6 @@ const maskTelefone = (v: string) => {
 const diaSemanaDe = (data: string) => DIAS_SEMANA[new Date(data + 'T00:00:00').getDay()];
 
 export function InteresseEntregadorPage() {
-  const natal = useUIStore((s) => s.natal);
   const [idNome, setIdNome] = useState('');
   const [idCpf, setIdCpf] = useState('');
   const [idTelefone, setIdTelefone] = useState('');
@@ -242,7 +239,6 @@ export function InteresseEntregadorPage() {
       <div className="grid w-full max-w-7xl items-center gap-6 lg:grid-cols-[1fr_1.05fr]">
         <section className="tech-hero relative hidden overflow-hidden rounded-[32px] border border-white/10 p-10 text-white shadow-[0_30px_90px_rgba(2,6,23,0.32)] lg:block">
           <div className="absolute inset-0 tech-grid opacity-20" />
-          {natal && <NatalSnow />}
           <div className="relative z-10 flex h-full flex-col justify-between">
             <div>
               <BrandLogo light subtitle="Interesse em Coletas" />

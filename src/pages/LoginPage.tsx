@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth';
-import { useUIStore } from '@/store/ui';
 import { Mail, Lock, Loader2, ShieldCheck, RadioTower, Sparkles } from 'lucide-react';
 import { BrandLogo } from '@/components/ui/BrandLogo';
-import { NatalSnow } from '@/components/ui/NatalSnow';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -15,7 +13,6 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
-  const natal = useUIStore((s) => s.natal);
 
   const from = (location.state as { from?: string })?.from || '/';
   const emailNormalizado = email.trim().toLowerCase();
@@ -88,7 +85,6 @@ export function LoginPage() {
       <div className="mx-auto grid min-h-full w-full max-w-7xl items-center gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section className="tech-hero relative hidden overflow-hidden rounded-[32px] border border-white/10 p-10 text-white shadow-[0_30px_90px_rgba(2,6,23,0.32)] lg:block">
           <div className="absolute inset-0 tech-grid opacity-20" />
-          {natal && <NatalSnow />}
           <div className="relative z-10 flex h-full flex-col justify-between">
             <div className="space-y-8">
               <BrandLogo light subtitle="Sistema de Escalas" />
