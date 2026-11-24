@@ -199,8 +199,8 @@ export function PortariasPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     const [portariasResult, condutoresResult] = await Promise.all([
-      dbPortarias.list(portaria),
-      dbCondutores.list(),
+      dbPortarias.listAll(portaria),
+      dbCondutores.listAllForMatching(),
     ]);
     if (portariasResult.error) {
       alert(`Não foi possível carregar a portaria: ${portariasResult.error.message}`);
@@ -373,7 +373,7 @@ export function PortariasPage() {
 
     setImporting(true);
     setImportResult(null);
-    const { data: existentesData, error: existentesError } = await dbPortarias.list(portaria);
+    const { data: existentesData, error: existentesError } = await dbPortarias.listAll(portaria);
     if (existentesError) {
       setImportResult({
         total: parsed.total,
@@ -466,26 +466,66 @@ export function PortariasPage() {
 
   const atualizarDePara = async () => {
     if (relinking) return;
-    const pendentes = records.filter((record) => !record.condutor_id);
-    if (pendentes.length === 0) {
-      alert('Todos os registros desta portaria já estão vinculados.');
+    if (!window.confirm(
+      'Atualizar vínculos de todas as portarias (Belo Horizonte e Guarulhos)?\n\n' +
+      'O sistema tentará CPF e nome completo normalizado. Vínculos já existentes não serão alterados.'
+    )) return;
+
+    setRelinking(true);
+    const [{ data: todosRegistros, error: portariasError }, { data: todosCondutores, error: condutoresError }] =
+      await Promise.all([dbPortarias.listAll(), dbCondutores.listAllForMatching()]);
+    if (portariasError || condutoresError) {
+      setRelinking(false);
+      alert(`Não foi possível carregar todos os dados para atualizar os vínculos: ${portariasError?.message || condutoresError?.message}`);
       return;
     }
 
-    setRelinking(true);
+    const pendentes = ((todosRegistros as PortariaCondutor[]) || []).filter((record) => !record.condutor_id);
+    if (pendentes.length === 0) {
+      setRelinking(false);
+      await loadData();
+      alert('Todos os registros das portarias de Belo Horizonte e Guarulhos já estão vinculados.');
+      return;
+    }
+
+    const candidatos = (todosCondutores as unknown as Condutor[]) || [];
+    setCondutores(candidatos);
+    const porCpf = new Map<string, Condutor[]>();
+    const porNome = new Map<string, Condutor[]>();
+    candidatos.forEach((condutor) => {
+      const cpf = soDigitos(condutor.cpf || '');
+      if (cpf.length === 11) porCpf.set(cpf, [...(porCpf.get(cpf) || []), condutor]);
+      const nome = normalizar(condutor.nome_completo);
+      if (nome) porNome.set(nome, [...(porNome.get(nome) || []), condutor]);
+    });
+    const localizarEntreTodos = (nome: string, cpf: string) => {
+      const cpfDigits = soDigitos(cpf);
+      if (cpfDigits.length === 11) {
+        const matchesCpf = porCpf.get(cpfDigits) || [];
+        if (matchesCpf.length === 1) return { condutor: matchesCpf[0], ambiguo: false };
+        if (matchesCpf.length > 1) return { condutor: null, ambiguo: true };
+      }
+      const matchesNome = porNome.get(normalizar(nome)) || [];
+      if (matchesNome.length === 1) return { condutor: matchesNome[0], ambiguo: false };
+      return { condutor: null, ambiguo: matchesNome.length > 1 };
+    };
     let vinculados = 0;
     let ambiguos = 0;
     let semCorrespondencia = 0;
     const errors: string[] = [];
+    const semCorrespondenciaNomes: string[] = [];
 
     for (const record of pendentes) {
-      const match = localizarCondutor(record.nome, record.cpf || '');
+      const match = localizarEntreTodos(record.nome, record.cpf || '');
       if (match.ambiguo) {
         ambiguos++;
         continue;
       }
       if (!match.condutor) {
         semCorrespondencia++;
+        if (semCorrespondenciaNomes.length < 10) {
+          semCorrespondenciaNomes.push(`${record.nome}${record.cpf ? ` (CPF ${record.cpf})` : ''}`);
+        }
         continue;
       }
 
@@ -500,10 +540,12 @@ export function PortariasPage() {
     await loadData();
     setRelinking(false);
     alert(
-      `De-para concluído para ${portariaLabel}.\n` +
+      'Atualização geral de vínculos concluída.\n' +
       `${vinculados} vínculo(s) atualizado(s), ${ambiguos} ambíguo(s), ` +
-      `${semCorrespondencia} sem correspondência e ${errors.length} erro(s).` +
-      (errors.length ? `\n\n${errors.slice(0, 5).join('\n')}` : '')
+      `${semCorrespondencia} sem correspondência e ${errors.length} erro(s).\n` +
+      'Os vínculos que já existiam foram preservados.' +
+      (semCorrespondenciaNomes.length ? `\n\nSem correspondência:\n${semCorrespondenciaNomes.join('\n')}` : '') +
+      (errors.length ? `\n\nErros:\n${errors.slice(0, 5).join('\n')}` : '')
     );
   };
 
@@ -560,11 +602,11 @@ export function PortariasPage() {
             <button
               className="btn-secondary"
               onClick={atualizarDePara}
-              disabled={relinking || loading || semVinculoCount === 0}
-              title="Reavaliar os registros sem vínculo usando CPF e nome normalizado"
+              disabled={relinking || loading}
+              title="Reavaliar os registros sem vínculo das duas portarias usando CPF e nome normalizado"
             >
               <RefreshCw size={16} className={relinking ? 'animate-spin' : ''} />
-              {relinking ? 'Atualizando vínculos...' : `Atualizar de-para (${semVinculoCount})`}
+              {relinking ? 'Atualizando todas as portarias...' : 'Atualizar vínculos de todas as portarias'}
             </button>
             <button className="btn-secondary" onClick={abrirImportacao}>
               <Upload size={16} /> Importar planilha

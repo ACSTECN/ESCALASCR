@@ -81,6 +81,22 @@ export const dbCondutores = {
     }
     return q;
   },
+  listAllForMatching: async () => {
+    const pageSize = 1000;
+    const rows: Pick<Condutor, 'id' | 'nome_completo' | 'cpf'>[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('condutores')
+        .select('id, nome_completo, cpf')
+        .order('nome_completo')
+        .order('id')
+        .range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      rows.push(...((data || []) as Pick<Condutor, 'id' | 'nome_completo' | 'cpf'>[]));
+      if (!data || data.length < pageSize) break;
+    }
+    return { data: rows, error: null };
+  },
   listAtivos: () =>
     supabase
       .from('condutores')
@@ -115,6 +131,24 @@ export const dbPortarias = {
       .order('nome');
     if (portaria) q = q.eq('portaria', portaria);
     return q;
+  },
+  listAll: async (portaria?: TipoPortaria) => {
+    const pageSize = 1000;
+    const rows: PortariaCondutor[] = [];
+    for (let from = 0; ; from += pageSize) {
+      let q = supabase
+        .from('portaria_condutores')
+        .select('*, condutor:condutores(id, nome_completo, cpf)')
+        .order('nome')
+        .order('id')
+        .range(from, from + pageSize - 1);
+      if (portaria) q = q.eq('portaria', portaria);
+      const { data, error } = await q;
+      if (error) return { data: null, error };
+      rows.push(...((data || []) as PortariaCondutor[]));
+      if (!data || data.length < pageSize) break;
+    }
+    return { data: rows, error: null };
   },
   create: (data: Partial<PortariaCondutor>) =>
     supabase.from('portaria_condutores').insert(data).select().single(),
