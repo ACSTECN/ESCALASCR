@@ -435,33 +435,33 @@ html.dark .recharts-default-tooltip .recharts-tooltip-item {
    'natal' do <html> em index.html e este bloco.
    ============================================================ */
 html.natal body {
-  background-color: #08080a;
+  background-color: #0b0b0d;
   background-image:
-    radial-gradient(circle at top left, rgba(162, 2, 2, 0.4), transparent 32%),
-    radial-gradient(circle at 86% 8%, rgba(162, 2, 2, 0.28), transparent 30%),
-    linear-gradient(180deg, #08080a 0%, #17060a 38%, #08080a 100%);
+    radial-gradient(circle at top left, rgba(240, 80, 80, 0.22), transparent 34%),
+    radial-gradient(circle at 86% 8%, rgba(255, 120, 120, 0.14), transparent 30%),
+    linear-gradient(180deg, #0b0b0d 0%, #140a0c 40%, #0b0b0d 100%);
 }
 
 html.natal .tech-hero {
   background-image:
-    radial-gradient(circle at top left, rgba(162, 2, 2, 0.6), transparent 34%),
-    radial-gradient(circle at 80% 18%, rgba(162, 2, 2, 0.38), transparent 32%),
-    linear-gradient(135deg, rgba(8, 8, 10, 0.98), rgba(38, 6, 8, 0.94));
+    radial-gradient(circle at top left, rgba(240, 80, 80, 0.34), transparent 36%),
+    radial-gradient(circle at 80% 18%, rgba(255, 130, 130, 0.2), transparent 32%),
+    linear-gradient(135deg, rgba(11, 11, 13, 0.98), rgba(32, 12, 15, 0.94));
 }
 
 html.natal .tech-surface {
   background-image:
-    radial-gradient(circle at top left, rgba(162, 2, 2, 0.2), transparent 28%),
-    linear-gradient(135deg, rgba(8, 8, 10, 0.98), rgba(28, 7, 9, 0.94));
+    radial-gradient(circle at top left, rgba(240, 80, 80, 0.12), transparent 28%),
+    linear-gradient(135deg, rgba(11, 11, 13, 0.98), rgba(24, 11, 13, 0.94));
 }
 
 html.natal .card,
 html.natal .tech-panel {
-  border-color: rgba(162, 2, 2, 0.5);
+  border-color: rgba(245, 100, 100, 0.45);
 }
 
 html.natal .neon-divider {
-  background-image: linear-gradient(to right, transparent, rgba(162, 2, 2, 0.95), transparent);
+  background-image: linear-gradient(to right, transparent, rgba(245, 100, 100, 0.95), transparent);
 }
 
 /* --- Neve caindo em todas as telas --- */
