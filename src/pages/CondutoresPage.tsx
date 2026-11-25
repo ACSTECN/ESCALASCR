@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Search, Phone, Upload, FileText, CheckSquare, Square, X, Download } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Phone, Upload, FileText, CheckSquare, Square, X, Download, KeyRound } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -64,6 +64,44 @@ const portariaAguardando = (item: PortariaCondutor) => {
   return texto.includes('aguardando') || texto.includes('pendente') || texto.includes('analise');
 };
 
+const normalizarNome = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+const soDigitos = (value: string) => value.replace(/\D/g, '');
+
+// Monta o cruzamento "tem senha MAGALOG?" a partir das mensagens recebidas com
+// senha. Usado tanto na importação quanto no botão de sincronização, para que os
+// dois caminhos classifiquem os condutores exatamente da mesma forma.
+const criarMatcherSenhaMagalog = (
+  mensagens: { nome: string | null; cpf: string | null }[]
+) => {
+  const cpfsComSenha = new Set(
+    mensagens.map((m) => soDigitos(m.cpf || '')).filter((cpf) => cpf.length === 11)
+  );
+  const cpfsPorNome = new Map<string, Set<string>>();
+  mensagens.forEach((m) => {
+    const nome = normalizarNome(m.nome || '');
+    if (!nome) return;
+    const cpfs = cpfsPorNome.get(nome) || new Set<string>();
+    cpfs.add(soDigitos(m.cpf || ''));
+    cpfsPorNome.set(nome, cpfs);
+  });
+
+  return (nome: string, cpf: string) => {
+    const cpfDigits = soDigitos(cpf || '');
+    if (cpfDigits && cpfsComSenha.has(cpfDigits)) return true;
+    const cpfs = cpfsPorNome.get(normalizarNome(nome || ''));
+    if (!cpfs) return false;
+    if (cpfDigits) return cpfs.has('');
+    return cpfs.size === 1;
+  };
+};
+
 export function CondutoresPage() {
   const user = useAuthStore((s) => s.user);
   const canEdit = canWrite(user?.perfil);
@@ -121,6 +159,7 @@ export function CondutoresPage() {
   >([]);
   const [mensagensSenhaLoading, setMensagensSenhaLoading] = useState(false);
   const [mensagensSenhaError, setMensagensSenhaError] = useState('');
+  const [sincronizandoSenha, setSincronizandoSenha] = useState(false);
   const [importResult, setImportResult] = useState<{
     total: number;
     imported: number;
@@ -432,6 +471,58 @@ export function CondutoresPage() {
     }
   };
 
+  // Reprocessa o cruzamento "tem senha MAGALOG?" em toda a base, sem depender de
+  // uma nova importação de planilha. Só marca quem passou a ter senha; nunca
+  // desmarca quem já estava marcado.
+  const sincronizarSenhaMagalog = async () => {
+    if (sincronizandoSenha) return;
+    setSincronizandoSenha(true);
+    try {
+      const [mensagensResult, condutoresResult] = await Promise.all([
+        dbMensagensMagalog.listComSenhaParaImportacao(),
+        dbCondutores.listAllForMatching(),
+      ]);
+      if (mensagensResult.error) throw mensagensResult.error;
+      if (condutoresResult.error) throw condutoresResult.error;
+
+      const mensagens = mensagensResult.data || [];
+      const lista = condutoresResult.data || [];
+      if (mensagens.length === 0) {
+        alert('Nenhuma mensagem MAGALOG com senha registrada foi encontrada.');
+        return;
+      }
+
+      const temSenha = criarMatcherSenhaMagalog(mensagens);
+      const idsParaMarcar: string[] = [];
+      lista.forEach((cd) => {
+        if (cd.tem_senha_magalog) return;
+        if (temSenha(cd.nome_completo || '', cd.cpf || '')) idsParaMarcar.push(cd.id);
+      });
+
+      if (idsParaMarcar.length === 0) {
+        alert(`Sincronização concluída.\n${lista.length} condutor(es) verificados; nenhuma diferença encontrada.`);
+        return;
+      }
+
+      for (let i = 0; i < idsParaMarcar.length; i += 100) {
+        const { error } = await dbCondutores.bulkSetSenhaMagalog(idsParaMarcar.slice(i, i + 100), true);
+        if (error) throw error;
+      }
+
+      alert(
+        `Sincronização de senha MAGALOG concluída:\n` +
+          `${idsParaMarcar.length} condutor(es) marcado(s) como "Com senha".\n` +
+          `${lista.length} condutor(es) verificados.`
+      );
+      loadData();
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : 'erro desconhecido';
+      alert(`Não foi possível sincronizar a senha MAGALOG: ${mensagem}`);
+    } finally {
+      setSincronizandoSenha(false);
+    }
+  };
+
   const atribuirHubSelecionados = async () => {
     if (!hubAtribuicao || selectedIds.size === 0 || atribuindoHub) return;
     const selecionados = condutoresFiltrados.filter((c) => selectedIds.has(c.id));
@@ -508,14 +599,6 @@ export function CondutoresPage() {
     ].filter(Boolean);
     alert(detalhes.join('\n'));
   };
-
-  const normalizarNome = (value: string) =>
-    value
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
 
   const nomePrimeiroSegundo = (value: string) =>
     normalizarNome(value)
@@ -746,28 +829,7 @@ export function CondutoresPage() {
       temSenhaMagalog: boolean;
     }> = [];
     const errors: string[] = [];
-    const soDigitos = (s: string) => s.replace(/\D/g, '');
-    const cpfsComSenha = new Set(
-      mensagensComSenha
-        .map((mensagem) => soDigitos(mensagem.cpf || ''))
-        .filter((cpf) => cpf.length === 11)
-    );
-    const cpfsPorNome = new Map<string, Set<string>>();
-    mensagensComSenha.forEach((mensagem) => {
-      const nome = normalizarNome(mensagem.nome || '');
-      if (!nome) return;
-      const cpfs = cpfsPorNome.get(nome) || new Set<string>();
-      cpfs.add(soDigitos(mensagem.cpf || ''));
-      cpfsPorNome.set(nome, cpfs);
-    });
-    const temSenhaMagalog = (nome: string, cpf: string) => {
-      const nomeNormalizado = normalizarNome(nome);
-      if (cpf && cpfsComSenha.has(cpf)) return true;
-      const cpfs = cpfsPorNome.get(nomeNormalizado);
-      if (!cpfs) return false;
-      if (cpf) return cpfs.has('');
-      return cpfs.size === 1;
-    };
+    const temSenhaMagalog = criarMatcherSenhaMagalog(mensagensComSenha);
 
     const limparTelefone = (s: string) => {
       const digits = soDigitos(s);
@@ -1093,6 +1155,13 @@ export function CondutoresPage() {
                 </button>
                 <button className="btn-secondary" onClick={abrirImportacao}>
                   <Upload size={16} /> Importar base
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={sincronizarSenhaMagalog}
+                  disabled={sincronizandoSenha}
+                >
+                  <KeyRound size={16} /> {sincronizandoSenha ? 'Sincronizando...' : 'Sincronizar senha'}
                 </button>
                 <button className="btn-primary" onClick={() => openModal()}>
                   <Plus size={16} /> Novo Condutor

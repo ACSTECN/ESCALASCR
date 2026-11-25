@@ -83,16 +83,18 @@ export const dbCondutores = {
   },
   listAllForMatching: async () => {
     const pageSize = 1000;
-    const rows: Pick<Condutor, 'id' | 'nome_completo' | 'cpf'>[] = [];
+    const rows: Pick<Condutor, 'id' | 'nome_completo' | 'cpf' | 'tem_senha_magalog'>[] = [];
     for (let from = 0; ; from += pageSize) {
       const { data, error } = await supabase
         .from('condutores')
-        .select('id, nome_completo, cpf')
+        .select('id, nome_completo, cpf, tem_senha_magalog')
         .order('nome_completo')
         .order('id')
         .range(from, from + pageSize - 1);
       if (error) return { data: null, error };
-      rows.push(...((data || []) as Pick<Condutor, 'id' | 'nome_completo' | 'cpf'>[]));
+      rows.push(
+        ...((data || []) as Pick<Condutor, 'id' | 'nome_completo' | 'cpf' | 'tem_senha_magalog'>[])
+      );
       if (!data || data.length < pageSize) break;
     }
     return { data: rows, error: null };
@@ -110,6 +112,8 @@ export const dbCondutores = {
   remove: (id: string) => supabase.from('condutores').delete().eq('id', id),
   bulkCreate: (data: Partial<Condutor>[]) =>
     supabase.from('condutores').insert(data).select(),
+  bulkSetSenhaMagalog: (ids: string[], temSenha: boolean) =>
+    supabase.from('condutores').update({ tem_senha_magalog: temSenha }).in('id', ids),
   findByCpf: async (cpf: string) => {
     const { data, error } = await supabase
       .from('condutores')
