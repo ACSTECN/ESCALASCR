@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { History as HistoryIcon, Search, Download } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { History as HistoryIcon, Search, Download, UserCheck, UserPlus, CalendarCheck, Filter, CheckCircle2, MapPin } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
@@ -109,12 +109,31 @@ export function HistoricoPage() {
     (h) => (!filtroEntidade || h.entidade === filtroEntidade) && (!filtroAcao || h.acao === filtroAcao)
   );
 
-  const agendamentosFiltrados = agendamentos.filter((a) => {
-    if (filtroHub && a.coleta?.hub?.id !== filtroHub) return false;
-    if (filtroStatus && a.status !== filtroStatus) return false;
-    if (filtroOrigem && (a.origem || 'agente') !== filtroOrigem) return false;
-    return true;
-  });
+  const agendamentosFiltrados = useMemo(() => {
+    return agendamentos
+      .filter((a) => {
+        if (filtroHub && a.coleta?.hub?.id !== filtroHub) return false;
+        if (filtroStatus && a.status !== filtroStatus) return false;
+        if (filtroOrigem && (a.origem || 'agente') !== filtroOrigem) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [agendamentos, filtroHub, filtroStatus, filtroOrigem]);
+
+  const resumo = useMemo(() => {
+    const total = agendamentosFiltrados.length;
+    const sistema = agendamentosFiltrados.filter((a) => (a.origem || 'agente') === 'sistema').length;
+    const agente = total - sistema;
+    const confirmados = agendamentosFiltrados.filter((a) => a.status === 'confirmado').length;
+    const vagasDistintas = new Set(agendamentosFiltrados.map((a) => a.coleta?.id).filter(Boolean)).size;
+    return { total, sistema, agente, confirmados, vagasDistintas };
+  }, [agendamentosFiltrados]);
+
+  const limparFiltros = () => {
+    setFiltroHub('');
+    setFiltroStatus('');
+    setFiltroOrigem('');
+  };
 
   const exportarAgendamentos = () => {
     const linhas = agendamentosFiltrados.map((a, i) => ({
@@ -125,7 +144,7 @@ export function HistoricoPage() {
       'Condutor': a.condutor?.nome_completo || '',
       'CPF': a.condutor?.cpf || '',
       'Status': statusLabels[a.status] || a.status,
-      'Origem': (a.origem || 'agente') === 'sistema' ? 'Sistema' : 'Agente',
+      'Quem agendou': (a.origem || 'agente') === 'sistema' ? 'Entregador pegou sozinho' : 'Operação',
       'Agendado em': a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : '',
       'Última atualização': a.updated_at ? new Date(a.updated_at).toLocaleString('pt-BR') : '',
     }));
@@ -147,7 +166,7 @@ export function HistoricoPage() {
     <div>
       <PageHeader
         title="Histórico"
-        description="Agendamentos (quem, status, horário e origem) e auditoria das ações"
+        description="Veja quem pegou a vaga (entregador ou operação), data da vaga e status"
         actions={
           <>
             <button className="btn-secondary" onClick={aba === 'agendamentos' ? exportarAgendamentos : exportarHistorico}>
@@ -182,6 +201,55 @@ export function HistoricoPage() {
 
       {aba === 'agendamentos' ? (
         <>
+          {/* Cards de resumo */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+            <div className="card p-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400">
+                <CalendarCheck size={20} />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-white tabular-nums">{resumo.total}</div>
+                <div className="text-xs text-slate-400">Agendamentos</div>
+              </div>
+            </div>
+            <div className="card p-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400">
+                <UserCheck size={20} />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-cyan-400 tabular-nums">{resumo.sistema}</div>
+                <div className="text-xs text-slate-400">Entregador pegou sozinho</div>
+              </div>
+            </div>
+            <div className="card p-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-500/20 text-slate-400">
+                <UserPlus size={20} />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-slate-300 tabular-nums">{resumo.agente}</div>
+                <div className="text-xs text-slate-400">Operação colocou</div>
+              </div>
+            </div>
+            <div className="card p-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
+                <CheckCircle2 size={20} />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-emerald-400 tabular-nums">{resumo.confirmados}</div>
+                <div className="text-xs text-slate-400">Confirmados</div>
+              </div>
+            </div>
+            <div className="card p-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
+                <MapPin size={20} />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-amber-400 tabular-nums">{resumo.vagasDistintas}</div>
+                <div className="text-xs text-slate-400">Vagas (coletas)</div>
+              </div>
+            </div>
+          </div>
+
           <div className="card p-4 mb-5">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               <div>
@@ -211,13 +279,25 @@ export function HistoricoPage() {
                 </select>
               </div>
               <div>
-                <label className="label">Origem</label>
+                <label className="label">Quem agendou</label>
                 <select className="input" value={filtroOrigem} onChange={(e) => setFiltroOrigem(e.target.value)}>
-                  <option value="">Todas</option>
-                  <option value="agente">Agente (operação)</option>
-                  <option value="sistema">Sistema (auto-agendamento)</option>
+                  <option value="">Todos</option>
+                  <option value="sistema">Entregador pegou sozinho</option>
+                  <option value="agente">Operação colocou</option>
                 </select>
               </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-xs text-slate-400 flex items-center gap-1"><Filter size={12} /> Rápido:</span>
+              <button className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${filtroOrigem === 'sistema' ? 'bg-cyan-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`} onClick={() => setFiltroOrigem(filtroOrigem === 'sistema' ? '' : 'sistema')}>
+                Só entregador pegou
+              </button>
+              <button className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${filtroOrigem === 'agente' ? 'bg-slate-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`} onClick={() => setFiltroOrigem(filtroOrigem === 'agente' ? '' : 'agente')}>
+                Só operação
+              </button>
+              <button className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition" onClick={limparFiltros}>
+                Limpar
+              </button>
             </div>
           </div>
 
@@ -229,41 +309,55 @@ export function HistoricoPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 text-xs uppercase">
                     <tr>
-                      <th className="text-left px-5 py-3">#</th>
-                      <th className="text-left px-5 py-3">Data / Horário</th>
-                      <th className="text-left px-5 py-3">HUB</th>
-                      <th className="text-left px-5 py-3">Condutor</th>
-                      <th className="text-left px-5 py-3">Status</th>
-                      <th className="text-left px-5 py-3">Origem</th>
-                      <th className="text-left px-5 py-3">Agendado em</th>
+                      <th className="text-left px-4 py-3">#</th>
+                      <th className="text-left px-4 py-3">Data da vaga</th>
+                      <th className="text-left px-4 py-3">HUB</th>
+                      <th className="text-left px-4 py-3">Condutor</th>
+                      <th className="text-left px-4 py-3">CPF</th>
+                      <th className="text-left px-4 py-3">Status</th>
+                      <th className="text-left px-4 py-3">Quem agendou</th>
+                      <th className="text-left px-4 py-3">Agendado em</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {agendamentosFiltrados.map((a, i) => (
-                      <tr key={a.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-3 text-slate-400">{i + 1}</td>
-                        <td className="px-5 py-3 text-slate-600 whitespace-nowrap">
-                          {formatDateBR(a.coleta?.data_coleta || '')} · {(a.coleta?.horario || '').slice(0, 5)}
-                        </td>
-                        <td className="px-5 py-3 text-slate-700">{a.coleta?.hub?.sigla || '—'}</td>
-                        <td className="px-5 py-3 text-slate-800">{a.condutor?.nome_completo || '—'}</td>
-                        <td className="px-5 py-3">
-                          <Badge variant={statusColor[a.status] || 'gray'}>{statusLabels[a.status] || a.status}</Badge>
-                        </td>
-                        <td className="px-5 py-3">
-                          {(a.origem || 'agente') === 'sistema' ? (
-                            <Badge variant="info">Sistema</Badge>
-                          ) : (
-                            <Badge variant="gray">Agente</Badge>
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-slate-500 whitespace-nowrap">
-                          {a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : '—'}
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {agendamentosFiltrados.map((a, i) => {
+                      const ehSistema = (a.origem || 'agente') === 'sistema';
+                      return (
+                        <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="px-4 py-3 text-slate-400 tabular-nums">{i + 1}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
+                              <CalendarCheck size={14} className="text-cyan-400 shrink-0" />
+                              <span className="font-semibold">{formatDateBR(a.coleta?.data_coleta || '')}</span>
+                              <span className="text-slate-400">·</span>
+                              <span className="text-slate-500 dark:text-slate-400">{(a.coleta?.horario || '').slice(0, 5)}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-700 dark:text-slate-200 font-semibold">{a.coleta?.hub?.sigla || '—'}</td>
+                          <td className="px-4 py-3 text-slate-800 dark:text-white font-medium">{a.condutor?.nome_completo || '—'}</td>
+                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400 tabular-nums">{a.condutor?.cpf || '—'}</td>
+                          <td className="px-4 py-3">
+                            <Badge variant={statusColor[a.status] || 'gray'}>{statusLabels[a.status] || a.status}</Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            {ehSistema ? (
+                              <Badge variant="info">
+                                <span className="flex items-center gap-1"><UserCheck size={12} /> Entregador pegou</span>
+                              </Badge>
+                            ) : (
+                              <Badge variant="gray">
+                                <span className="flex items-center gap-1"><UserPlus size={12} /> Operação</span>
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap tabular-nums">
+                            {a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
